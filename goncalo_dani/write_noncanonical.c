@@ -19,9 +19,10 @@
 #define FALSE 0
 #define TRUE 1
 
-#define BUF_SIZE 256
+#define BUF_SIZE 5
 
 volatile int STOP = FALSE;
+
 
 int main(int argc, char *argv[])
 {
@@ -92,18 +93,47 @@ int main(int argc, char *argv[])
     // Create string to send
     unsigned char buf[BUF_SIZE] = {0};
 
-    for (int i = 0; i < BUF_SIZE; i++)
-    {
-        buf[i] = 'a' + i % 26;
-    }
-
-    // In non-canonical mode, '\n' does not end the writing.
-    // Test this condition by placing a '\n' in the middle of the buffer.
-    // The whole buffer must be sent even with the '\n'.
-    buf[5] = '\n';
-
+    buf[0] = 0x7E;
+    buf[1] = 0x03;
+    buf[2] = 0x03;
+    buf[3] = buf[1] ^ buf[2];
+    buf[4] = 0x7E;
     int bytes = write(fd, buf, BUF_SIZE);
     printf("%d bytes written\n", bytes);
+
+    /*while(alarmCount < 3){
+        
+
+        alarm(3);
+
+        int r1 = read(
+        
+        if (bem lido){
+        alarm(0);
+        retun 0; 
+        }
+        
+        else{
+        return 1;        
+        }
+
+        alarmCount++;
+        
+    }*/
+    int counter = 0;
+    unsigned char buf2[BUF_SIZE + 1] = {0};
+    
+    while(STOP == FALSE){
+        int bytess = read(fd, buf2, 1);
+        printf(":0x%02%2X:%d\n", buf2[0], bytess);
+        if (buf2[0] == 0xFE) counter++;
+        if (counter == 2) STOP = TRUE;    
+    }
+    
+
+    
+
+
 
     // Wait until all bytes have been written to the serial port
     sleep(1);
