@@ -25,7 +25,7 @@ int main()
 {
     // Set alarm function handler
     (void)signal(SIGALRM, alarmHandler);
-
+    alarm(3);
     while (alarmCount < 4)
     {
         if (alarmEnabled == FALSE)
@@ -34,7 +34,7 @@ int main()
             alarmEnabled = TRUE;
         }
     }
-
+    alarm(0);
     printf("Ending program\n");
 
     return 0;

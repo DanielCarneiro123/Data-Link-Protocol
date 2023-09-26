@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
     
     while(STOP == FALSE){
         int bytess = read(fd, buf2, 1);
-        printf(":0x%02%2X:%d\n", buf2[0], bytess);
+        printf(":0x%02X:%d\n", buf2[0], bytess);
         if (buf2[0] == 0xFE) counter++;
         if (counter == 2) STOP = TRUE;    
     }
