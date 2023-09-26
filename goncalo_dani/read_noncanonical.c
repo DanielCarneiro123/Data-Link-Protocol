@@ -107,16 +107,16 @@ int main(int argc, char *argv[])
     }
     
     //enviar o UA 
-    unsigned char buf[BUF_SIZE] = {0};
+    unsigned char buf2[BUF_SIZE] = {0};
     
-    buf[0] = 0x7E;
-    buf[1] = 0x03;
-    buf[2] = 0x03;
-    buf[3] = buf[1] ^ buf[2];
-    buf[4] = 0x7E;
+    buf2[0] = 0x7E;
+    buf2[1] = 0x01;
+    buf2[2] = 0x07;
+    buf2[3] = buf2[1] ^ buf2[2];
+    buf2[4] = 0x7E;
     
-    int bytes = write(fd, buf, BUF_SIZE);
-    print("%d butes written \n", bytes);
+    int bytes = write(fd, buf2, BUF_SIZE);
+    print("%d bytes written \n", bytes);
 
     // The while() cycle should be changed in order to respect the specifications
     // of the protocol indicated in the Lab guide
