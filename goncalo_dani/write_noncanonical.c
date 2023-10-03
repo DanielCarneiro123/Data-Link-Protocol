@@ -23,8 +23,33 @@
 
 volatile int STOP = FALSE;
 
+int alarmEnabled = FALSE;
+int alarmCount = 0;
+
+typedef enum{
+    INIT,
+    ASTATE,
+    CSTATE,
+    BCC_STATE,
+    FINAL,
+    ERROR,
+} state_t;
+state_t state = INIT;
+
+
+void alarmHandler(int signal)
+{
+    alarmEnabled = FALSE;
+    alarmCount++;
+
+    printf("Alarm #%d\n", alarmCount);
+}
+
 int main(int argc, char *argv[])
 {
+
+    (void)signal(SIGALRM, alarmHandler);
+    
     // Program usage: Uses either COM1 or COM2
     const char *serialPortName = argv[1];
 
@@ -98,34 +123,49 @@ int main(int argc, char *argv[])
     buf[2] = 0x03;
     buf[3] = buf[1] ^ buf[2];
     buf[4] = 0x7E;
+
+    while((alarmCount<4 && alarmEnabled == 0) || state == ERROR){
+
     int bytes = write(fd, buf, BUF_SIZE);
     printf("%d bytes written\n", bytes);
-
-    /*while(alarmCount < 3){
         
         alarm(3);
-        int r1 = read(
-        
-        if (bem lido){
-        alarm(0);
-        retun 0; 
-        }
-        
-        else{
-        return 1;        
-        }
-        alarmCount++;
-        
-    }*/
-    int counter = 0;
-    unsigned char buf2[BUF_SIZE + 1] = {0};
+        alarmEnabled = 1;
 
-    while(STOP == FALSE){
-        int bytess = read(fd, buf2, 1);
-        printf(":0x%02X:%d\n", buf2[0], bytess);
-        if (buf2[0] == 0xFE) counter++;
-        if (counter == 2) STOP = TRUE;    
+        state=INIT;
+        while(alarmEnabled==1 && state != ERROR){
+            unsigned char byte[2]={0};
+            
+            if (read(fd,byte,1)>0){
+                switch(state){
+                    case INIT:
+                        printf("byte nr 1: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if (byte[0]==0x7E) state = ASTATE;
+                        break;
+                    case ASTATE:
+                        printf("byte nr 2: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if (byte[0]==0x03) state = CSTATE;
+                        break;
+                    case CSTATE:
+                        printf("byte nr 3: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if(byte[0]==0x07) state = BCC_STATE;
+                        break;
+                    case BCCSTATE:
+                        printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if(byte[0]==0x04) state = FINAL;
+                        break;
+                    case FINAL:
+                        printf("byte nr 5: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if(byte[0]==0x7E) {
+                            alarm(0);
+                            alarmEnabled=0;
+                        }                      
+                        break;
+                }
+            }else {printf("State error");state=ERROR;alarmCount++;}
+        }
     }
+
 
     // In non-canonical mode, '\n' does not end the writing.
     // Test this condition by placing a '\n' in the middle of the buffer.
