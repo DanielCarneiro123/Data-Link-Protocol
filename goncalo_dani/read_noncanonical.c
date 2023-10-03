@@ -21,7 +21,18 @@
 
 #define BUF_SIZE 5
 
-volatile int STOP = FALSE;
+
+
+typedef enum{
+    START,
+    FLAGRCV,
+    ARCV,
+    CRCV,
+    BCCOK,
+    ERROR,
+    STOP
+} state_t;
+state_t state = START;
 
 int main(int argc, char *argv[])
 {
@@ -67,7 +78,7 @@ int main(int argc, char *argv[])
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
     newtio.c_cc[VTIME] = 0; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 5;  // Blocking read until 5 chars received
+    newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -88,35 +99,66 @@ int main(int argc, char *argv[])
 
     printf("New termios structure set\n");
 
-    // Loop for input
-    int counter = 0;
-    unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
 
-    while (STOP == FALSE)
-    {
-        // Returns after 5 chars have been input
-        int bytes = read(fd, buf, 1);
-        //buf[bytes] = '\0'; // Set end of string to '\0', so we can printf
 
-        printf(":0x%02X:%d\n", buf[0], bytes);
-        
-        if(buf[0] == 0xFE) counter++;
-        if (counter == 2) STOP = TRUE;
-        //unsigned char cond = (buf[1] ^ buf[2]) ^ buf[3];
- 
-    }
     
+   
+    while(state != STOP){
+            unsigned char byte[1] = {0};
+            int nBytes = read(fd,byte,1);
+            
+            if (nBytes>0){
+                switch(state){
+                    case START:
+                        printf("byte nr 1: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if (byte[0]==0x7E) state = FLAGRCV;
+                        else state = START;
+                        break;
+                    case FLAGRCV:
+                        printf("byte nr 2: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if (byte[0]==0x03) state = ARCV;
+                        else if (byte[0]==0x7E) state = FLAGRCV;
+                        
+                        else state = START;
+                        break;
+                    case ARCV:
+                        printf("byte nr 3: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if(byte[0]==0x03) state = CRCV;
+                        else if (byte[0]==0x7E) state = FLAGRCV;
+                        else state = START;
+                        break;
+                    case CRCV:
+                        printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if(byte[0]== (0x03 ^ 0x03)) state = BCCOK;
+                        else if(byte[0]== 0x7E) state = FLAGRCV;
+                        else state = START;
+                        break;
+                    case BCCOK:
+                        printf("byte nr 5: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if(byte[0]==0x7E) {
+                            state = STOP;
+                            printf("All done\n");
+                        }
+                        else state = START;                      
+                        break;
+                }
+            }
+
+        }
+        
     //enviar o UA 
     unsigned char buf2[BUF_SIZE] = {0};
     
-    buf2[0] = 0x7E;
+    buf2[0] = 0x8E;
     buf2[1] = 0x01;
     buf2[2] = 0x07;
     buf2[3] = buf2[1] ^ buf2[2];
     buf2[4] = 0x7E;
     
     int bytes = write(fd, buf2, BUF_SIZE);
-    print("%d bytes written \n", bytes);
+    printf("%d bytes written \n", bytes);
+    
+
 
     // The while() cycle should be changed in order to respect the specifications
     // of the protocol indicated in the Lab guide
