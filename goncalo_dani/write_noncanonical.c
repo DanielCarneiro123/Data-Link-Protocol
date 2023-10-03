@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
+#include <signal.h>
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
@@ -33,6 +34,7 @@ typedef enum{
     BCCSTATE,
     FINAL,
     ERROR,
+    DONE
 } state_t;
 state_t state = INIT;
 
@@ -93,7 +95,7 @@ int main(int argc, char *argv[])
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
     newtio.c_cc[VTIME] = 0; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 5;  // Blocking read until 5 chars received
+    newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -116,7 +118,8 @@ int main(int argc, char *argv[])
 
 
 
-    while((alarmCount<4 && alarmEnabled == 0) || state == ERROR){
+    while(((alarmCount<4 && alarmEnabled == 0) || state == ERROR) && state != DONE){
+        printf("dentro do while\n");
 
         // Create string to send
         unsigned char buf[BUF_SIZE] = {0};
@@ -127,10 +130,6 @@ int main(int argc, char *argv[])
         buf[2] = 0x03;
         buf[3] = buf[1] ^ buf[2];
         buf[4] = 0x7E;
-        // In non-canonical mode, '\n' does not end the writing.
-        // Test this condition by placing a '\n' in the middle of the buffer.
-        // The whole buffer must be sent even with the '\n'.
-        buf[5] = '\n';
 
         int bytes = write(fd, buf, BUF_SIZE);
         printf("%d bytes written\n", bytes);
@@ -139,37 +138,46 @@ int main(int argc, char *argv[])
         alarmEnabled = 1;
 
         state=INIT;
+        int totalBytes = 0;
         while(alarmEnabled==1 && state != ERROR){
-            unsigned char byte[2]={0};
+            unsigned char byte[1] = {0};
+            int nBytes = read(fd,byte,1);
             
-            if (read(fd,byte,1)>0){
+            if (nBytes>0){
                 switch(state){
                     case INIT:
                         printf("byte nr 1: %x\n",(unsigned int) byte[0] & 0xFF);
                         if (byte[0]==0x7E) state = ASTATE;
+                        else state = ERROR;
                         break;
                     case ASTATE:
                         printf("byte nr 2: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if (byte[0]==0x03) state = CSTATE;
+                        if (byte[0]==0x01) state = CSTATE;
+                        else state = ERROR;
                         break;
                     case CSTATE:
                         printf("byte nr 3: %x\n",(unsigned int) byte[0] & 0xFF);
                         if(byte[0]==0x07) state = BCCSTATE;
+                        else state = ERROR;
                         break;
                     case BCCSTATE:
                         printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]==0x04) state = FINAL;
+                        if(byte[0]== 0x01 ^ 0x07) state = FINAL;
+                        else state = ERROR;
                         break;
                     case FINAL:
                         printf("byte nr 5: %x\n",(unsigned int) byte[0] & 0xFF);
                         if(byte[0]==0x7E) {
                             alarm(0);
                             alarmEnabled=0;
-                            printf("All done");
-                        }                      
+                            state = DONE;
+                            printf("All done\n");
+                        }
+                        else state = ERROR;                      
                         break;
                 }
-            }else {printf("State error");state=ERROR;alarmCount++;}
+            }
+            // else {printf("State error");state=ERROR;}
         }
     }
 
