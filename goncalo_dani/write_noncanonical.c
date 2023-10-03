@@ -30,7 +30,7 @@ typedef enum{
     INIT,
     ASTATE,
     CSTATE,
-    BCC_STATE,
+    BCCSTATE,
     FINAL,
     ERROR,
 } state_t;
@@ -114,20 +114,26 @@ int main(int argc, char *argv[])
 
     printf("New termios structure set\n");
 
-    // Create string to send
-    unsigned char buf[BUF_SIZE] = {0};
 
-
-    buf[0] = 0x7E;
-    buf[1] = 0x03;
-    buf[2] = 0x03;
-    buf[3] = buf[1] ^ buf[2];
-    buf[4] = 0x7E;
 
     while((alarmCount<4 && alarmEnabled == 0) || state == ERROR){
 
-    int bytes = write(fd, buf, BUF_SIZE);
-    printf("%d bytes written\n", bytes);
+        // Create string to send
+        unsigned char buf[BUF_SIZE] = {0};
+
+
+        buf[0] = 0x7E;
+        buf[1] = 0x03;
+        buf[2] = 0x03;
+        buf[3] = buf[1] ^ buf[2];
+        buf[4] = 0x7E;
+        // In non-canonical mode, '\n' does not end the writing.
+        // Test this condition by placing a '\n' in the middle of the buffer.
+        // The whole buffer must be sent even with the '\n'.
+        buf[5] = '\n';
+
+        int bytes = write(fd, buf, BUF_SIZE);
+        printf("%d bytes written\n", bytes);
         
         alarm(3);
         alarmEnabled = 1;
@@ -148,7 +154,7 @@ int main(int argc, char *argv[])
                         break;
                     case CSTATE:
                         printf("byte nr 3: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]==0x07) state = BCC_STATE;
+                        if(byte[0]==0x07) state = BCCSTATE;
                         break;
                     case BCCSTATE:
                         printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
@@ -159,6 +165,7 @@ int main(int argc, char *argv[])
                         if(byte[0]==0x7E) {
                             alarm(0);
                             alarmEnabled=0;
+                            printf("All done");
                         }                      
                         break;
                 }
@@ -166,14 +173,6 @@ int main(int argc, char *argv[])
         }
     }
 
-
-    // In non-canonical mode, '\n' does not end the writing.
-    // Test this condition by placing a '\n' in the middle of the buffer.
-    // The whole buffer must be sent even with the '\n'.
-    buf[5] = '\n';
-
-    int bytes = write(fd, buf, BUF_SIZE);
-    printf("%d bytes written\n", bytes);
 
     // Wait until all bytes have been written to the serial port
     sleep(1);
