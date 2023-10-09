@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.txt": "cmake",
+        "state_machines.h": "c"
+    }
+}

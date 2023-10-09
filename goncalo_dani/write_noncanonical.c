@@ -11,6 +11,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <signal.h>
+#include "state_machines.h"
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
@@ -27,22 +28,13 @@ volatile int STOP = FALSE;
 int alarmEnabled = FALSE;
 int alarmCount = 0;
 
-typedef enum{
-    INIT,
-    ASTATE,
-    CSTATE,
-    BCCSTATE,
-    FINAL,
-    ERROR,
-    DONE
-} state_t;
-state_t state = INIT;
+#define FLAG 0x7E
+#define AC_SND 0x03
+#define A_RCV 0x01
+#define UA 0x07
+#define SET 0x03
 
-#define FLAG 0x7E;
-#define AC_SND 0x03;
-#define A_RCV 0x01;
-#define UA 0x07;
-#define SET 0x03;
+extern state_t state;
 
 void alarmHandler(int signal)
 {
@@ -142,48 +134,7 @@ int main(int argc, char *argv[])
         alarm(3);
         alarmEnabled = 1;
 
-        state=INIT;
-        int totalBytes = 0;
-        while(alarmEnabled==1 && state != ERROR){
-            unsigned char byte[1] = {0};
-            int nBytes = read(fd,byte,1);
-            
-            if (nBytes>0){
-                switch(state){
-                    case INIT:
-                        printf("byte nr 1: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if (byte[0]==FLAG) state = ASTATE;
-                        else state = ERROR;
-                        break;
-                    case ASTATE:
-                        printf("byte nr 2: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if (byte[0]==A_RCV) state = CSTATE;
-                        else state = ERROR;
-                        break;
-                    case CSTATE:
-                        printf("byte nr 3: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]==UA) state = BCCSTATE;
-                        else state = ERROR;
-                        break;
-                    case BCCSTATE:
-                        printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]== (A_RCV ^ UA) & 0xFF) state = FINAL;
-                        else state = ERROR;
-                        break;
-                    case FINAL:
-                        printf("byte nr 5: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]==FLAG) {
-                            alarm(0);
-                            alarmEnabled=0;
-                            state = DONE;
-                            printf("All done\n");
-                        }
-                        else state = ERROR;                      
-                        break;
-                }
-            }
-            // else {printf("State error");state=ERROR;}
-        }
+        state_machine(0, fd);
     }
 
 

@@ -10,6 +10,8 @@
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
+#include "state_machines.h"
+
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
@@ -20,11 +22,11 @@
 #define TRUE 1
 
 #define BUF_SIZE 5
-#define FLAG 0x7E;
-#define AC_SND 0x03;
-#define A_RCV 0x01;
-#define UA 0x07;
-#define SET 0x03;
+#define FLAG 0x7E
+#define AC_SND 0x03
+#define A_RCV 0x01
+#define UA 0x07
+#define SET 0x03
 
 
 
@@ -103,52 +105,10 @@ int main(int argc, char *argv[])
     }
 
     printf("New termios structure set\n");
-
-
-
-    
    
-    while(state != STOP){
-            unsigned char byte[1] = {0};
-            int nBytes = read(fd,byte,1);
-            
-            if (nBytes>0){
-                switch(state){
-                    case START:
-                        printf("byte nr 1: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if (byte[0]==FLAG) state = FLAGRCV;
-                        else state = START;
-                        break;
-                    case FLAGRCV:
-                        printf("byte nr 2: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if (byte[0]==AC_SND) state = ARCV;
-                        else if (byte[0]==FLAG) state = FLAGRCV;
-                        else state = START;
-                        break;
-                    case ARCV:
-                        printf("byte nr 3: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]==SET) state = CRCV;
-                        else if (byte[0]==FLAG) state = FLAGRCV;
-                        else state = START;
-                        break;
-                    case CRCV:
-                        printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]== (AC_SND ^ SET) & 0xFF) state = BCCOK;
-                        else if(byte[0]== FLAG) state = FLAGRCV;
-                        else state = START;
-                        break;
-                    case BCCOK:
-                        printf("byte nr 5: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]==FLAG) {
-                            state = STOP;
-                            printf("All done\n");
-                        }
-                        else state = START;                      
-                        break;
-                }
-            }
+    
+    state_machine(1, fd);
 
-        }
         
     //enviar o UA 
     unsigned char buf2[BUF_SIZE] = {0};
