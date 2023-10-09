@@ -29,18 +29,6 @@
 #define SET 0x03
 
 
-
-typedef enum{
-    START,
-    FLAGRCV,
-    ARCV,
-    CRCV,
-    BCCOK,
-    ERROR,
-    STOP
-} state_t;
-state_t state = START;
-
 int main(int argc, char *argv[])
 {
     // Program usage: Uses either COM1 or COM2
