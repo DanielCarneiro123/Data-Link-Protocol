@@ -17,7 +17,7 @@
 #define SET 0x03
 
 state_t state;
-extern alarmEnabled;
+extern int alarmEnabled;
 
 
 void state_machine(int type_machine, int fd) {
