@@ -20,11 +20,11 @@
 #define TRUE 1
 
 #define BUF_SIZE 5
-#define FLAG 0x7E;
-#define AC_SND 0x03;
-#define A_RCV 0x01;
-#define UA 0x07;
-#define SET 0x03;
+#define FLAG 0x7E
+#define AC_SND 0x03
+#define A_RCV 0x01
+#define UA 0x07
+#define SET 0x03
 
 
 

@@ -38,11 +38,11 @@ typedef enum{
 } state_t;
 state_t state = INIT;
 
-#define FLAG 0x7E;
-#define AC_SND 0x03;
-#define A_RCV 0x01;
-#define UA 0x07;
-#define SET 0x03;
+#define FLAG 0x7E
+#define AC_SND 0x03
+#define A_RCV 0x01
+#define UA 0x07
+#define SET 0x03
 
 void alarmHandler(int signal)
 {
@@ -132,8 +132,8 @@ int main(int argc, char *argv[])
 
         buf[0] = FLAG;
         buf[1] = AC_SND;
-        buf[2] = AC_SND;
-        buf[3] = SET;
+        buf[2] = SET;
+        buf[3] = (AC_SND ^ SET) & 0xFF;
         buf[4] = FLAG;
 
         int bytes = write(fd, buf, BUF_SIZE);
