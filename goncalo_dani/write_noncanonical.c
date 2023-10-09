@@ -38,6 +38,11 @@ typedef enum{
 } state_t;
 state_t state = INIT;
 
+#define FLAG 0x7E;
+#define AC_SND 0x03;
+#define A_RCV 0x01;
+#define UA 0x07;
+#define SET 0x03;
 
 void alarmHandler(int signal)
 {
@@ -125,11 +130,11 @@ int main(int argc, char *argv[])
         unsigned char buf[BUF_SIZE] = {0};
 
 
-        buf[0] = 0x7E;
-        buf[1] = 0x03;
-        buf[2] = 0x03;
-        buf[3] = buf[1] ^ buf[2];
-        buf[4] = 0x7E;
+        buf[0] = FLAG;
+        buf[1] = AC_SND;
+        buf[2] = AC_SND;
+        buf[3] = SET;
+        buf[4] = FLAG;
 
         int bytes = write(fd, buf, BUF_SIZE);
         printf("%d bytes written\n", bytes);
@@ -147,27 +152,27 @@ int main(int argc, char *argv[])
                 switch(state){
                     case INIT:
                         printf("byte nr 1: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if (byte[0]==0x7E) state = ASTATE;
+                        if (byte[0]==FLAG) state = ASTATE;
                         else state = ERROR;
                         break;
                     case ASTATE:
                         printf("byte nr 2: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if (byte[0]==0x01) state = CSTATE;
+                        if (byte[0]==A_RCV) state = CSTATE;
                         else state = ERROR;
                         break;
                     case CSTATE:
                         printf("byte nr 3: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]==0x07) state = BCCSTATE;
+                        if(byte[0]==UA) state = BCCSTATE;
                         else state = ERROR;
                         break;
                     case BCCSTATE:
                         printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]== 0x01 ^ 0x07) state = FINAL;
+                        if(byte[0]== (A_RCV ^ UA) & 0xFF) state = FINAL;
                         else state = ERROR;
                         break;
                     case FINAL:
                         printf("byte nr 5: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]==0x7E) {
+                        if(byte[0]==FLAG) {
                             alarm(0);
                             alarmEnabled=0;
                             state = DONE;

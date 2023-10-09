@@ -20,6 +20,11 @@
 #define TRUE 1
 
 #define BUF_SIZE 5
+#define FLAG 0x7E;
+#define AC_SND 0x03;
+#define A_RCV 0x01;
+#define UA 0x07;
+#define SET 0x03;
 
 
 
@@ -111,31 +116,30 @@ int main(int argc, char *argv[])
                 switch(state){
                     case START:
                         printf("byte nr 1: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if (byte[0]==0x7E) state = FLAGRCV;
+                        if (byte[0]==FLAG) state = FLAGRCV;
                         else state = START;
                         break;
                     case FLAGRCV:
                         printf("byte nr 2: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if (byte[0]==0x03) state = ARCV;
-                        else if (byte[0]==0x7E) state = FLAGRCV;
-                        
+                        if (byte[0]==AC_SND) state = ARCV;
+                        else if (byte[0]==FLAG) state = FLAGRCV;
                         else state = START;
                         break;
                     case ARCV:
                         printf("byte nr 3: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]==0x03) state = CRCV;
-                        else if (byte[0]==0x7E) state = FLAGRCV;
+                        if(byte[0]==SET) state = CRCV;
+                        else if (byte[0]==FLAG) state = FLAGRCV;
                         else state = START;
                         break;
                     case CRCV:
                         printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]== (0x03 ^ 0x03)) state = BCCOK;
-                        else if(byte[0]== 0x7E) state = FLAGRCV;
+                        if(byte[0]== (AC_SND ^ SET) & 0xFF) state = BCCOK;
+                        else if(byte[0]== FLAG) state = FLAGRCV;
                         else state = START;
                         break;
                     case BCCOK:
                         printf("byte nr 5: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]==0x7E) {
+                        if(byte[0]==FLAG) {
                             state = STOP;
                             printf("All done\n");
                         }
@@ -149,11 +153,11 @@ int main(int argc, char *argv[])
     //enviar o UA 
     unsigned char buf2[BUF_SIZE] = {0};
     
-    buf2[0] = 0x8E;
-    buf2[1] = 0x01;
-    buf2[2] = 0x07;
-    buf2[3] = buf2[1] ^ buf2[2];
-    buf2[4] = 0x7E;
+    buf2[0] = FLAG;
+    buf2[1] = A_RCV;
+    buf2[2] = UA;
+    buf2[3] = (A_RCV ^ UA) & 0xFF;
+    buf2[4] = FLAG;
     
     int bytes = write(fd, buf2, BUF_SIZE);
     printf("%d bytes written \n", bytes);
