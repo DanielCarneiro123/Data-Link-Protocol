@@ -23,7 +23,6 @@
 
 #define BUF_SIZE 5
 
-volatile int STOP = FALSE;
 
 int alarmEnabled = FALSE;
 int alarmCount = 0;

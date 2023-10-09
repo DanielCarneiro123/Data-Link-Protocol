@@ -22,7 +22,7 @@ extern int alarmEnabled;
 
 void state_machine(int type_machine, int fd) {
 
-    state = INIT;
+state = INIT;
 switch (type_machine)
 {
 case 0:
