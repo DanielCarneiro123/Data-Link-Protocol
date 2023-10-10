@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include "state_machines.h"
+#include "link_layer.h"
 
 
 #define FLAG 0x7E
@@ -15,6 +16,7 @@
 #define A_RCV 0x01
 #define UA 0x07
 #define SET 0x03
+int res = 0x00;
 
 state_t state;
 extern int alarmEnabled;
@@ -23,6 +25,9 @@ extern int alarmEnabled;
 void state_machine(int type_machine, int fd) {
 
 state = INIT;
+unsigned char payload[MAX_PAYLOAD_SIZE] = {0};
+int index = 0;
+
 switch (type_machine)
 {
 case 0:
@@ -52,6 +57,13 @@ case 0:
                         if(byte[0]== (A_RCV ^ UA) & 0xFF) state = FINAL;
                         else state = ERROR;
                         break;
+                    case DATA:
+                        printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if (byte[0] == FLAG) state = FINAL; 
+                        else {payload[index] = byte[0]; index++;}
+                        //res = res ^ byte[0];
+                        //else state = ERROR;
+
                     case FINAL:
                         printf("byte nr 5: %x\n",(unsigned int) byte[0] & 0xFF);
                         if(byte[0]==FLAG) {
@@ -112,4 +124,15 @@ case 1:
 default:
     break;
 }
+}
+
+void destuffing(unsigned char *payload){
+    unsigned char final_payload[MAX_PAYLOAD_SIZE] = {0};
+    int res = 0x00;
+    for (int i = 0; i < MAX_PAYLOAD_SIZE - 1; i++){
+        if (payload[i] == ESC && payload[i+1] == 0x5E){
+            final_payload[i] = FLAG; 
+            i++;          
+        }
+    }
 }
