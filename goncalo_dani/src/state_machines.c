@@ -7,8 +7,8 @@
 #include <termios.h>
 #include <unistd.h>
 #include <signal.h>
-#include "state_machines.h"
-#include "link_layer.h"
+#include "../include/state_machines.h"
+#include "../include/link_layer.h"
 
 
 #define FLAG 0x7E
@@ -31,7 +31,7 @@ int index = 0;
 switch (type_machine)
 {
 case 0:
-        while(alarmEnabled==1 && state != ERROR){
+        while(alarmEnabled==1){
             unsigned char byte[1] = {0};
             int nBytes = read(fd,byte,1);
             
@@ -57,12 +57,11 @@ case 0:
                         if(byte[0]== (A_RCV ^ UA) & 0xFF) state = FINAL;
                         else state = ERROR;
                         break;
-                    case DATA:
+                    /*case ERROR:
                         printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if (byte[0] == FLAG) state = FINAL; 
-                        else {payload[index] = byte[0]; index++;}
+                        payload[index] = byte[0]; index++;
                         //res = res ^ byte[0];
-                        //else state = ERROR;
+                        //else state = ERROR;*/
 
                     case FINAL:
                         printf("byte nr 5: %x\n",(unsigned int) byte[0] & 0xFF);
@@ -126,7 +125,7 @@ default:
 }
 }
 
-void destuffing(unsigned char *payload){
+/*void destuffing(unsigned char *payload){
     unsigned char final_payload[MAX_PAYLOAD_SIZE] = {0};
     int res = 0x00;
     for (int i = 0; i < MAX_PAYLOAD_SIZE - 1; i++){
@@ -135,4 +134,4 @@ void destuffing(unsigned char *payload){
             i++;          
         }
     }
-}
+}*/

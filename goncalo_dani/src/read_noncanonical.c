@@ -10,7 +10,7 @@
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
-#include "state_machines.h"
+#include "../include/state_machines.h"
 
 
 // Baudrate settings are defined in <asm/termbits.h>, which is

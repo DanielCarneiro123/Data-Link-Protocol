@@ -11,7 +11,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <signal.h>
-#include "state_machines.h"
+#include "../include/state_machines.h"
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
 
 
 
-    while(((alarmCount<4 && alarmEnabled == 0) || state == ERROR) && state != DONE){
+    while(((alarmCount<4 && alarmEnabled == 0)) && state != DONE){
         printf("dentro do while\n");
 
         // Create string to send
