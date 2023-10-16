@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "c:/Users/danie/OneDrive/Documentos/GitHub/rcom/goncalo_dani",
-      "program": "c:/Users/danie/OneDrive/Documentos/GitHub/rcom/goncalo_dani/build/Debug/outDebug",
+      "cwd": "c:/Users/danie/OneDrive/Documentos/GitHub/rcom/goncalo_dani/src",
+      "program": "c:/Users/danie/OneDrive/Documentos/GitHub/rcom/goncalo_dani/src/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [

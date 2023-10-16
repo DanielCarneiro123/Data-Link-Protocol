@@ -19,6 +19,9 @@
 
 int alarmEnabled = FALSE;
 int alarmCount = 0;
+int nRetransmitions = 0;
+int timeout = 0;
+unsigned char info_frameTx = 0;
 
 #define FLAG 0x7E
 #define AC_SND 0x03
@@ -48,13 +51,15 @@ int llopen(LinkLayer connectionParameters)
     int dev = connecting(connectionParameters.serialPort);
     unsigned char payload[MAX_PAYLOAD_SIZE] = {0};
     int index = 0;
+    timeout = connectionParameters.timeout;
+    nRetransmitions = connectionParameters.nRetransmissions;
 
     switch (connectionParameters.role)
     {
     case LlTx:
         (void)signal(SIGALRM, alarmHandler);
 
-        while(((alarmCount < 4 && alarmEnabled == 0) || state == ERROR) && state != DONE){
+        while(((alarmCount < 4 && alarmEnabled == 0)) && state != DONE){
         printf("dentro do while\n");
 
         // Create string to send
@@ -70,7 +75,7 @@ int llopen(LinkLayer connectionParameters)
         int bytes = write(fd, buf, BUF_SIZE);
         printf("%d bytes written\n", bytes);
         
-        alarm(3);
+        alarm(connectionParameters.timeout);
         alarmEnabled = 1;
 
         while (alarmEnabled==1){
@@ -116,7 +121,10 @@ int llopen(LinkLayer connectionParameters)
                         break;
                 }
             }
+            connectionParameters.nRetransmissions--;
         }
+        if (state != FINAL) return -1;
+            break; 
     }
     break;
 
@@ -160,22 +168,109 @@ int llopen(LinkLayer connectionParameters)
                         break;
                     }
                 }
-            };
+            }
+            buf2[0] = FLAG;
+            buf2[1] = A_RCV;
+            buf2[2] = UA;
+            buf2[3] = (A_RCV ^ UA) & 0xFF;
+            buf2[4] = FLAG;
+            int bytes = write(fd, buf2, BUF_SIZE);
+            printf("%d bytes written \n", bytes);
             break;
     default:
+        return -1;
         break;
-    }   
+    }  
+    return fd; 
 }
 
 
-////////////////////////////////////////////////
-// LLWRITE
-////////////////////////////////////////////////
-int llwrite(const unsigned char *buf, int bufSize)
-{
-    // TODO
 
-    return 0;
+unsigned char stuffing(unsigned char *payload){
+    unsigned char send_payload[MAX_PAYLOAD_SIZE] = {0};
+    int second_index = 0;
+    for (int i = 4; i < MAX_PAYLOAD_SIZE /*- 1*/; i++){
+        if (payload[i] == FLAG){
+            send_payload[i + second_index] = ESC; 
+            second_index++;
+            send_payload[i + second_index] = 0x5E;
+        }
+        else if (payload[i] == ESC){
+            send_payload[i + second_index] = ESC; 
+            second_index++;
+            send_payload[i + second_index] = 0x5D;
+        }
+        else{
+            send_payload[i + second_index] = payload[i];
+        }
+    }
+    return send_payload;
+}
+
+
+int llwrite(int fd, const unsigned char *buf, int bufSize) { 
+    unsigned char *frame = (unsigned char *) malloc(frameSize);
+    frame[0] = FLAG;
+    frame[1] = AC_SND;
+    frame[2] = C_I(info_frameTx);
+    frame[3] = FLAG;
+
+    unsigned char *stuffedPayload = stuffing(buf, bufSize);
+
+    int frame_index = 4;
+
+    for (int i = 0; i < bufSize; i++) {
+        frame[frame_index++] = stuffedPayload[i];
+    }
+
+    unsigned char BCC2 = stuffedPayload[0];
+    for (int i = 1; i < bufSize; i++) {
+        BCC2 ^= stuffedPayload[i];
+    }
+    frame[frame_index++] = BCC2;
+    frame[frame_index++] = FLAG;
+
+    int alarmCount = 0;
+    bool all_done = false;
+    bool rejected = false;
+
+    while (alarmCount < nRetransmitions){
+        alarmEnabled = FALSE;
+        alarm(timeout);
+
+        while (alarmEnabled == FALSE && !rejected && !all_done) {
+            write(fd, frame, frame_index);
+
+            unsigned char result = ler RR (a fazer);
+
+            if (!result) {
+                continue;
+            } 
+            else if (result == C_REJ(0) || result == C_REJ(1)) {
+                rejected = true;
+            } 
+            else if (result == C_RR(0) || result == C_RR(1)) {
+                all_done = true;
+                info_frameTx = (info_frameTx + 1) % 2;
+            } 
+            else {
+                continue;
+            }
+        }   
+        free(frame);
+
+        if (all_done) {
+            break;
+        }
+        nRetransmitions++;
+    }
+
+    if (all_done) {
+        return bufSize;
+    } else {
+        llclose(fd);
+        return -1;
+    }
 }
 
 ////////////////////////////////////////////////
@@ -186,6 +281,27 @@ int llread(unsigned char *packet)
     // TODO
 
     return 0;
+}
+
+int destuffing(unsigned char *payload){
+    unsigned char final_payload[MAX_PAYLOAD_SIZE] = {0};
+    int res = 0;
+    for (int i = 0; i < MAX_PAYLOAD_SIZE; i++){
+        if (payload[i] == ESC && payload[i+1] == 0x5E){
+            final_payload[i] = FLAG; 
+            i++;          
+        }
+        else if(payload[i] == ESC && payload[i+1] == 0x5D){
+            final_payload[i] = ESC; 
+            i++; 
+        }
+        else{
+            final_payload[i] = payload[i];
+        }
+    }
+    for (int i = 0; i < MAX_PAYLOAD_SIZE; i++){
+        res = final_payload[i] ^ res;
+    }
 }
 
 ////////////////////////////////////////////////

@@ -16,6 +16,7 @@
 #define A_RCV 0x01
 #define UA 0x07
 #define SET 0x03
+
 int res = 0x00;
 
 state_t state;
@@ -31,7 +32,7 @@ int index = 0;
 switch (type_machine)
 {
 case 0:
-        while(alarmEnabled==1){
+        while(alarmEnabled==1 && case == ERROR){
             unsigned char byte[1] = {0};
             int nBytes = read(fd,byte,1);
             
@@ -57,12 +58,11 @@ case 0:
                         if(byte[0]== (A_RCV ^ UA) & 0xFF) state = FINAL;
                         else state = ERROR;
                         break;
-                    /*case ERROR:
+                    case ERROR:
                         printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
                         payload[index] = byte[0]; index++;
                         //res = res ^ byte[0];
-                        //else state = ERROR;*/
-
+                        //else state = ERROR;
                     case FINAL:
                         printf("byte nr 5: %x\n",(unsigned int) byte[0] & 0xFF);
                         if(byte[0]==FLAG) {
@@ -125,13 +125,45 @@ default:
 }
 }
 
-/*void destuffing(unsigned char *payload){
+int destuffing(unsigned char *payload){
     unsigned char final_payload[MAX_PAYLOAD_SIZE] = {0};
-    int res = 0x00;
-    for (int i = 0; i < MAX_PAYLOAD_SIZE - 1; i++){
+    int res = 0;
+    for (int i = 0; i < MAX_PAYLOAD_SIZE; i++){
         if (payload[i] == ESC && payload[i+1] == 0x5E){
             final_payload[i] = FLAG; 
             i++;          
         }
+        else if(payload[i] == ESC && payload[i+1] == 0x5D){
+            final_payload[i] = ESC; 
+            i++; 
+        }
+        else{
+            final_payload[i] = payload[i];
+        }
     }
-}*/
+    for (int i = 0; i < MAX_PAYLOAD_SIZE; i++){
+        res = final_payload[i] ^ res;
+    }
+}
+
+   
+
+void stuffing(unsigned char *payload){
+    unsigned char send_payload[MAX_PAYLOAD_SIZE] = {0};
+    int second_index = 0;
+    for (int i = 0; i < MAX_PAYLOAD_SIZE /*- 1*/; i++){
+        if (payload[i] == FLAG){
+            send_payload[i + second_index] = ESC; 
+            second_index++;
+            send_payload[i + second_index] = 0x5E;
+        }
+        else if (payload[i] == ESC){
+            send_payload[i + second_index] = ESC; 
+            second_index++;
+            send_payload[i + second_index] = 0x5D;
+        }
+        else{
+            send_payload[i + second_index] = payload[i];
+        }
+    }
+}
