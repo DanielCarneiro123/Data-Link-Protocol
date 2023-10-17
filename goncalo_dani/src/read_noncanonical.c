@@ -11,6 +11,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include "../include/state_machines.h"
+#include "../include/link_layer.h"
 
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
@@ -97,7 +98,6 @@ int main(int argc, char *argv[])
    
     
     state_machine(1, fd);
-
         
     //enviar o UA 
     unsigned char buf2[BUF_SIZE] = {0};

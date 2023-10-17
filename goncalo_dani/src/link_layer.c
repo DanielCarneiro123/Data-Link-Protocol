@@ -22,6 +22,7 @@ int alarmCount = 0;
 int nRetransmitions = 0;
 int timeout = 0;
 unsigned char info_frameTx = 0;
+unsigned char info_frameRx = 1;
 
 #define FLAG 0x7E
 #define AC_SND 0x03
@@ -209,12 +210,13 @@ unsigned char stuffing(unsigned char *payload){
 
 
 int llwrite(int fd, const unsigned char *buf, int bufSize) { 
+    int frameSize = bufSize + 6;
     unsigned char *frame = (unsigned char *) malloc(frameSize);
     frame[0] = FLAG;
     frame[1] = AC_SND;
     frame[2] = C_I(info_frameTx);
-    frame[3] = FLAG;
-
+    frame[3] = frame[1] ^ frame[2];
+    unsigned char Ccontrol;
     unsigned char *stuffedPayload = stuffing(buf, bufSize);
 
     int frame_index = 4;
@@ -241,15 +243,52 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
         while (alarmEnabled == FALSE && !rejected && !all_done) {
             write(fd, frame, frame_index);
 
-            unsigned char result = ler RR (a fazer);
+            unsigned char Ccontrol = 0;
+            state_t state = START;
+            unsigned char byte = 0;
 
-            if (!result) {
+            while (state != DONE && alarmEnabled == FALSE) {  
+                if (read(fd, &byte, 1) > 0) {
+                    switch (state) {
+                        case START:
+                            if (byte == FLAG) state = FLAG_RCV;
+                            break;
+                        case FLAG_RCV:
+                            if (byte == 0x03) state = A_RCV;
+                            else if (byte != FLAG) state = START;
+                            break;
+                        case A_RCV:
+                            if (byte == C_RR(0) || byte == C_RR(1) || byte == C_REJ(0) || byte == C_REJ(1) || byte == 0x0B){
+                                state = C_RCV;
+                                Ccontrol = byte;   
+                            }
+                            else if (byte == FLAG) state = FLAG_RCV;
+                            else state = START;
+                            break;
+                        case C_RCV:
+                            if (byte == (0x03 ^ Ccontrol)) state = BCC1_OK;
+                            else if (byte == FLAG) state = FLAG_RCV;
+                            else state = START;
+                            break;
+                        case BCC1_OK:
+                            if (byte == FLAG){
+                                state = DONE;
+                            }
+                            else state = START;
+                            break;
+                        default: 
+                            break;
+                    }
+                } 
+            }
+
+            if (!Ccontrol) {
                 continue;
             } 
-            else if (result == C_REJ(0) || result == C_REJ(1)) {
+            else if (Ccontrol == C_REJ(0) || Ccontrol == C_REJ(1)) {
                 rejected = true;
             } 
-            else if (result == C_RR(0) || result == C_RR(1)) {
+            else if (Ccontrol == C_RR(0) || Ccontrol == C_RR(1)) {
                 all_done = true;
                 info_frameTx = (info_frameTx + 1) % 2;
             } 
@@ -276,12 +315,14 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
 ////////////////////////////////////////////////
 // LLREAD
 ////////////////////////////////////////////////
-int llread(unsigned char *packet)
+int llread(int fd, unsigned char *packet, int payload_size)
 {
-    unsigned char byte, Ccontrol;
-    iniciar o state = start;
-    unsigned char *received_playload = (unsigned char *) malloc(frame_size);
-    int i = 0;
+    // aqui colocar também caso recebemos um SET, mandarmos outro UA tal como no llopen (mas agora fazer isto mesmo aqui no llreade, e depois dar return 0 para que nao seja somado mais um na app)
+    unsigned char byte, Ccontrol, bcc2;
+    state_t state = START;
+    unsigned char *received_payload = (unsigned char *) malloc(payload_size);
+    
+    int size = 0;
 
     while (state != DONE){
         if (read(fd, &byte, 1) > 0) {
@@ -289,56 +330,78 @@ int llread(unsigned char *packet)
                 case START:
                     if (byte == FLAG) state = FLAG_RCV;
                     break;
+
                 case FLAG_RCV:
                     if (byte == 0x03) state = A_RCV;
                     else if (byte != FLAG) state = START;
                     break;
+
                 case A_RCV:
                     if (byte == C_I(0) || byte == C_I(1)){
                         state = C_RCV;
                         Ccontrol = byte;   
                     }
                     else if (byte == FLAG) state = FLAG_RCV;
-                    /*else if (byte == C_DISC) {
-                        write c_disc
-                        return 0;
-                    }*/
+                    else if (byte == 0x0B) {
+                            unsigned char FRAME[5] = {FLAG, 0x01, 0x0B, 0x01 ^ 0x0B, FLAG};
+                            write(fd, FRAME, 5);
+                            return 0;
+                    }
                     else state = START;
                     break;
+
                 case C_RCV:
                     if (byte == (0x03 ^ Ccontrol)) state = DESTUFF;
                     else if (byte == FLAG) state = FLAG_RCV;
                     else state = START;
                     break;
+
                 case DESTUFF:
                     if (byte == FLAG){ 
-                        /*verificar o bbc2; (com os XOR's) e agir perante isso*/
+                        received_payload[size-1] = 0;
+                        size--;
+                        int bcc2_res = destuffing(received_payload, &size);
+                        if(bcc2_res == bcc2){
+                            state = DONE;
+                            unsigned char FRAME[5] = {FLAG, 0x01, C_RR(info_frameRx), 0x01 ^ C_RR(info_frameRx), FLAG};
+                            write(fd, FRAME, 5);
+                            info_frameRx = (info_frameRx + 1)%2;
+                            return size;
+                        }
+                        else{
+                            printf("Error: retransmition\n");
+                            unsigned char FRAME[5] = {FLAG, 0x01, C_RJ(info_frameRx), 0x01 ^ C_RJ(info_frameRx), FLAG};
+                            write(fd, FRAME, 5);
+                            return 0; //um rejected nao é um erro, simplesmente recebemos zero bytes, ignorar operação
+                        }
                     }
                     else{
-                        received_playload[i] = byte;
-                        i++;
+                        received_payload[size] = byte;
+                        bcc2 = byte;
+                        size++;
                     }
-                    
                     break;
 
             }
         }
     }
 
-    return 0;
+    return -1;
 }
 
-int destuffing(unsigned char *payload){
+int destuffing(unsigned char *payload, int *size){
     unsigned char final_payload[MAX_PAYLOAD_SIZE] = {0};
     int res = 0;
-    for (int i = 0; i < MAX_PAYLOAD_SIZE; i++){
+    for (int i = 0; i < MAX_PAYLOAD_SIZE; i++){ //trocar
         if (payload[i] == ESC && payload[i+1] == 0x5E){
             final_payload[i] = FLAG; 
             i++;          
+            size--;
         }
         else if(payload[i] == ESC && payload[i+1] == 0x5D){
             final_payload[i] = ESC; 
-            i++; 
+            i++;
+            size--;
         }
         else{
             final_payload[i] = payload[i];
@@ -347,6 +410,7 @@ int destuffing(unsigned char *payload){
     for (int i = 0; i < MAX_PAYLOAD_SIZE; i++){
         res = final_payload[i] ^ res;
     }
+    return res;
 }
 
 ////////////////////////////////////////////////

@@ -21,6 +21,11 @@ int res = 0x00;
 
 state_t state;
 extern int alarmEnabled;
+extern int alarmCount;
+unsigned char info_frameTx = 0;
+unsigned char info_frameRx = 1;
+int nRetransmitions = 0;
+
 
 
 void state_machine(int type_machine, int fd) {
@@ -28,11 +33,13 @@ void state_machine(int type_machine, int fd) {
 state = INIT;
 unsigned char payload[MAX_PAYLOAD_SIZE] = {0};
 int index = 0;
+unsigned char all_done = 0;
+unsigned char rejected = 0;
 
 switch (type_machine)
 {
 case 0:
-        while(alarmEnabled==1 && case == ERROR){
+        /*while(alarmEnabled==1 && case == ERROR){
             unsigned char byte[1] = {0};
             int nBytes = read(fd,byte,1);
             
@@ -61,8 +68,8 @@ case 0:
                     case ERROR:
                         printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
                         payload[index] = byte[0]; index++;
-                        //res = res ^ byte[0];
-                        //else state = ERROR;
+                        res = res ^ byte[0];
+                        else state = ERROR;
                     case FINAL:
                         printf("byte nr 5: %x\n",(unsigned int) byte[0] & 0xFF);
                         if(byte[0]==FLAG) {
@@ -75,11 +82,78 @@ case 0:
                         break;
                 }
             }
+        }*/
+        while (alarmCount < 4){
+        alarmEnabled = FALSE;
+        alarm(3);
+
+        while (alarmEnabled == FALSE && !rejected && !all_done) {
+            write(fd, frame, frame_index);
+
+            unsigned char Ccontrol = 0;
+            state_t state = INIT;
+            unsigned char byte = 0;
+
+            while (state != DONE && alarmEnabled == FALSE) {  
+                if (read(fd, &byte, 1) > 0) {
+                    switch (state) {
+                        case INIT:
+                            if (byte == FLAG) state = FLAGRCV;
+                            break;
+                        case FLAGRCV:
+                            if (byte == 0x03) state = A_RCV;
+                            else if (byte != FLAG) state = INIT;
+                            break;
+                        case A_RCV:
+                            if (byte == C_RR(0) || byte == C_RR(1) || byte == C_RJ(0) || byte == C_RJ(1) || byte == 0x0B){
+                                state = CRCV;
+                                Ccontrol = byte;   
+                            }
+                            else if (byte == FLAG) state = FLAGRCV;
+                            else state = INIT;
+                            break;
+                        case CRCV:
+                            if (byte == (0x03 ^ Ccontrol)) state = BCCOK;
+                            else if (byte == FLAG) state = FLAGRCV;
+                            else state = INIT;
+                            break;
+                        case BCCOK:
+                            if (byte == FLAG){
+                                state = DONE;
+                            }
+                            else state = INIT;
+                            break;
+                        default: 
+                            break;
+                    }
+                } 
+            }
+
+            if (!Ccontrol) {
+                continue;
+            } 
+            else if (Ccontrol == C_RJ(0) || Ccontrol == C_RJ(1)) {
+                rejected = true;
+            } 
+            else if (Ccontrol == C_RR(0) || Ccontrol == C_RR(1)) {
+                all_done = true;
+                info_frameTx = (info_frameTx + 1) % 2;
+            } 
+            else {
+                continue;
+            }
+        }   
+        free(frame);
+
+        if (all_done) {
+            break;
+        }
+        nRetransmitions++;
         }
     break;
 
 case 1:
-    while(state != STOP){
+    /*while(state != STOP){
                 unsigned char byte[1] = {0};
                 int nBytes = read(fd,byte,1);
                 
@@ -118,7 +192,68 @@ case 1:
                             break;
                     }
                 }
-            };
+            };*/
+            while (state != DONE){
+        if (read(fd, &byte, 1) > 0) {
+            switch (state) {
+                case INIT:
+                    if (byte == FLAG) state = FLAGRCV;
+                    break;
+
+                case FLAGRCV:
+                    if (byte == 0x03) state = A_RCV;
+                    else if (byte != FLAG) state = INIT;
+                    break;
+
+                case A_RCV:
+                    if (byte == C_I(0) || byte == C_I(1)){
+                        state = CRCV;
+                        Ccontrol = byte;   
+                    }
+                    else if (byte == FLAG) state = FLAGRCV;
+                    else if (byte == 0x0B) {
+                            unsigned char FRAME[5] = {FLAG, 0x01, 0x0B, 0x01 ^ 0x0B, FLAG};
+                            write(fd, FRAME, 5);
+                            return 0;
+                    }
+                    else state = INIT;
+                    break;
+
+                case CRCV:
+                    if (byte == (0x03 ^ Ccontrol)) state = DESTUFF;
+                    else if (byte == FLAG) state = FLAGRCV;
+                    else state = INIT;
+                    break;
+
+                case DESTUFF:
+                    if (byte == FLAG){ 
+                        received_payload[size-1] = 0;
+                        size--;
+                        int bcc2_res = destuffing(received_payload, &size);
+                        if(bcc2_res == bcc2){
+                            state = DONE;
+                            unsigned char FRAME[5] = {FLAG, 0x01, C_RR(info_frameRx), 0x01 ^ C_RR(info_frameRx), FLAG};
+                            write(fd, FRAME, 5);
+                            info_frameRx = (info_frameRx + 1)%2;
+                            return size;
+                        }
+                        else{
+                            printf("Error: retransmition\n");
+                            unsigned char FRAME[5] = {FLAG, 0x01, C_RJ(info_frameRx), 0x01 ^ C_RJ(info_frameRx), FLAG};
+                            write(fd, FRAME, 5);
+                            return -1;
+                        }
+                    }
+                    else{
+                        received_payload[size] = byte;
+                        bcc2 = byte;
+                        size++;
+                    }
+                    break;
+
+            }
+        }
+    }
             break;
 default:
     break;

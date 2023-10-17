@@ -28,6 +28,8 @@ typedef struct
 #define TRUE 1
 #define ESC 0x7D
 #define C_I(Ns) (Ns << 6)
+#define C_RR(N) (N << 7)
+#define C_RJ(N) (N << 7)
 
 // Open a connection using the "port" parameters defined in struct linkLayer.
 // Return "1" on success or "-1" on error.
@@ -45,5 +47,11 @@ int llread(unsigned char *packet);
 // if showStatistics == TRUE, link layer should print statistics in the console on close.
 // Return "1" on success or "-1" on error.
 int llclose(int showStatistics);
+
+int connecting(const char *serialPortName);
+
+int destuffing(unsigned char *payload, int *size);
+
+unsigned char stuffing(unsigned char *payload);
 
 #endif // _LINK_LAYER_H_

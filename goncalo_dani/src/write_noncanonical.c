@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include "../include/state_machines.h"
+#include "../include/link_layer.h"
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
@@ -21,7 +22,7 @@
 #define FALSE 0
 #define TRUE 1
 
-#define BUF_SIZE 5
+#define BUF_SIZE 7
 
 
 int alarmEnabled = FALSE;
@@ -123,9 +124,11 @@ int main(int argc, char *argv[])
 
         buf[0] = FLAG;
         buf[1] = AC_SND;
-        buf[2] = SET;
-        buf[3] = (AC_SND ^ SET) & 0xFF;
-        buf[4] = FLAG;
+        buf[2] = C_I(info_frameTx);
+        buf[3] = frame[1] ^ frame[2];
+        buf[4] = 0x01;
+        buf[5] = 0x01;
+        buf[6] = FLAG;
 
         int bytes = write(fd, buf, BUF_SIZE);
         printf("%d bytes written\n", bytes);
