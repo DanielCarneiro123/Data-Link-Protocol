@@ -13,6 +13,7 @@ typedef enum{
     ARCV,
     CRCV,
     BCCOK,
+    DESTUFF,
     STOP
 } state_t;
 

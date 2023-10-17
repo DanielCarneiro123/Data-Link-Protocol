@@ -278,7 +278,52 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
 ////////////////////////////////////////////////
 int llread(unsigned char *packet)
 {
-    // TODO
+    unsigned char byte, Ccontrol;
+    iniciar o state = start;
+    unsigned char *received_playload = (unsigned char *) malloc(frame_size);
+    int i = 0;
+
+    while (state != DONE){
+        if (read(fd, &byte, 1) > 0) {
+            switch (state) {
+                case START:
+                    if (byte == FLAG) state = FLAG_RCV;
+                    break;
+                case FLAG_RCV:
+                    if (byte == 0x03) state = A_RCV;
+                    else if (byte != FLAG) state = START;
+                    break;
+                case A_RCV:
+                    if (byte == C_I(0) || byte == C_I(1)){
+                        state = C_RCV;
+                        Ccontrol = byte;   
+                    }
+                    else if (byte == FLAG) state = FLAG_RCV;
+                    /*else if (byte == C_DISC) {
+                        write c_disc
+                        return 0;
+                    }*/
+                    else state = START;
+                    break;
+                case C_RCV:
+                    if (byte == (0x03 ^ Ccontrol)) state = DESTUFF;
+                    else if (byte == FLAG) state = FLAG_RCV;
+                    else state = START;
+                    break;
+                case DESTUFF:
+                    if (byte == FLAG){ 
+                        /*verificar o bbc2; (com os XOR's) e agir perante isso*/
+                    }
+                    else{
+                        received_playload[i] = byte;
+                        i++;
+                    }
+                    
+                    break;
+
+            }
+        }
+    }
 
     return 0;
 }
