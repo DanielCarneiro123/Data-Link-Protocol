@@ -37,11 +37,11 @@ int llopen(LinkLayer connectionParameters);
 
 // Send data in buf with size bufSize.
 // Return number of chars written, or "-1" on error.
-int llwrite(const unsigned char *buf, int bufSize);
+int llwrite(int fd, const unsigned char *buf, int bufSize);
 
 // Receive data in packet.
 // Return number of chars read, or "-1" on error.
-int llread(unsigned char *packet);
+int llread(int fd, unsigned char *packet, int payload_size);
 
 // Close previously opened connection.
 // if showStatistics == TRUE, link layer should print statistics in the console on close.
@@ -50,8 +50,8 @@ int llclose(int showStatistics);
 
 int connecting(const char *serialPortName);
 
-int destuffing(unsigned char *payload, int *size);
+int destuffing(unsigned char *payload, int size);
 
-unsigned char stuffing(unsigned char *payload);
+unsigned char *stuffing(const unsigned char *payload, int size);
 
 #endif // _LINK_LAYER_H_

@@ -9,6 +9,7 @@ typedef enum{
     FINAL,
     ERROR,
     DONE,
+    DATA,
     FLAGRCV,
     ARCV,
     CRCV,

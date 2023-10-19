@@ -96,16 +96,16 @@ int main(int argc, char *argv[])
 
     printf("New termios structure set\n");
    
-    
-    state_machine(1, fd);
+    unsigned char *buf= (unsigned char *) malloc(7);
+    int res = llread(fd, buf, 7);
         
     //enviar o UA 
     unsigned char buf2[BUF_SIZE] = {0};
     
     buf2[0] = FLAG;
-    buf2[1] = A_RCV;
-    buf2[2] = UA;
-    buf2[3] = (A_RCV ^ UA) & 0xFF;
+    buf2[1] = 0x03;
+    buf2[2] = C_RR(0);
+    buf2[3] = (buf2[1] ^ buf2[2]) & 0xFF;
     buf2[4] = FLAG;
     
     int bytes = write(fd, buf2, BUF_SIZE);
@@ -125,5 +125,5 @@ int main(int argc, char *argv[])
 
     close(fd);
 
-    return 0;
+    return res;
 }

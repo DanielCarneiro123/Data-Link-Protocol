@@ -115,29 +115,9 @@ int main(int argc, char *argv[])
     printf("New termios structure set\n");
 
 
-
+    int res = 0;
     while(((alarmCount<4 && alarmEnabled == 0)) && state != DONE){
-        printf("dentro do while\n");
-
-        // Create string to send
-        unsigned char buf[BUF_SIZE] = {0};
-
-
-        buf[0] = FLAG;
-        buf[1] = AC_SND;
-        buf[2] = C_I(info_frameTx);
-        buf[3] = frame[1] ^ frame[2];
-        buf[4] = 0x01;
-        buf[5] = 0x01;
-        buf[6] = FLAG;
-
-        int bytes = write(fd, buf, BUF_SIZE);
-        printf("%d bytes written\n", bytes);
-        
-        alarm(3);
-        alarmEnabled = 1;
-
-        state_machine(0, fd);
+        res = llwrite(fd, buf, 7);
     }
 
 
@@ -153,5 +133,5 @@ int main(int argc, char *argv[])
 
     close(fd);
 
-    return 0;
+    return res;
 }
