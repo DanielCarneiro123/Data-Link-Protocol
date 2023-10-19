@@ -244,37 +244,37 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
             write(fd, frame, frame_index);
 
             unsigned char Ccontrol = 0;
-            state_t state = START;
+            state_t state = INIT;
             unsigned char byte = 0;
 
             while (state != DONE && alarmEnabled == FALSE) {  
                 if (read(fd, &byte, 1) > 0) {
                     switch (state) {
-                        case START:
-                            if (byte == FLAG) state = FLAG_RCV;
+                        case INIT:
+                            if (byte == FLAG) state = FLAGRCV;
                             break;
-                        case FLAG_RCV:
+                        case FLAGRCV:
                             if (byte == 0x03) state = A_RCV;
-                            else if (byte != FLAG) state = START;
+                            else if (byte != FLAG) state = INIT;
                             break;
                         case A_RCV:
                             if (byte == C_RR(0) || byte == C_RR(1) || byte == C_REJ(0) || byte == C_REJ(1) || byte == 0x0B){
-                                state = C_RCV;
+                                state = CRCV;
                                 Ccontrol = byte;   
                             }
-                            else if (byte == FLAG) state = FLAG_RCV;
-                            else state = START;
+                            else if (byte == FLAG) state = FLAGRCV;
+                            else state = INIT;
                             break;
-                        case C_RCV:
-                            if (byte == (0x03 ^ Ccontrol)) state = BCC1_OK;
-                            else if (byte == FLAG) state = FLAG_RCV;
-                            else state = START;
+                        case CRCV:
+                            if (byte == (0x03 ^ Ccontrol)) state = BCCOK;
+                            else if (byte == FLAG) state = FLAGRCV;
+                            else state = INIT;
                             break;
-                        case BCC1_OK:
+                        case BCCOK:
                             if (byte == FLAG){
                                 state = DONE;
                             }
-                            else state = START;
+                            else state = INIT;
                             break;
                         default: 
                             break;
@@ -285,7 +285,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
             if (!Ccontrol) {
                 continue;
             } 
-            else if (Ccontrol == C_REJ(0) || Ccontrol == C_REJ(1)) {
+            else if (Ccontrol == C_RJ(0) || Ccontrol == C_RJ(1)) {
                 rejected = true;
             } 
             else if (Ccontrol == C_RR(0) || Ccontrol == C_RR(1)) {
@@ -319,7 +319,7 @@ int llread(int fd, unsigned char *packet, int payload_size)
 {
     // aqui colocar também caso recebemos um SET, mandarmos outro UA tal como no llopen (mas agora fazer isto mesmo aqui no llreade, e depois dar return 0 para que nao seja somado mais um na app)
     unsigned char byte, Ccontrol, bcc2;
-    state_t state = START;
+    state_t state = INIT;
     unsigned char *received_payload = (unsigned char *) malloc(payload_size);
     
     int size = 0;
@@ -327,33 +327,33 @@ int llread(int fd, unsigned char *packet, int payload_size)
     while (state != DONE){
         if (read(fd, &byte, 1) > 0) {
             switch (state) {
-                case START:
-                    if (byte == FLAG) state = FLAG_RCV;
+                case INIT:
+                    if (byte == FLAG) state = FLAGRCV;
                     break;
 
-                case FLAG_RCV:
+                case FLAGRCV:
                     if (byte == 0x03) state = A_RCV;
-                    else if (byte != FLAG) state = START;
+                    else if (byte != FLAG) state = INIT;
                     break;
 
                 case A_RCV:
                     if (byte == C_I(0) || byte == C_I(1)){
-                        state = C_RCV;
+                        state = CRCV;
                         Ccontrol = byte;   
                     }
-                    else if (byte == FLAG) state = FLAG_RCV;
+                    else if (byte == FLAG) state = FLAGRCV;
                     else if (byte == 0x0B) {
                             unsigned char FRAME[5] = {FLAG, 0x01, 0x0B, 0x01 ^ 0x0B, FLAG};
                             write(fd, FRAME, 5);
                             return 0;
                     }
-                    else state = START;
+                    else state = INIT;
                     break;
 
-                case C_RCV:
+                case CRCV:
                     if (byte == (0x03 ^ Ccontrol)) state = DESTUFF;
-                    else if (byte == FLAG) state = FLAG_RCV;
-                    else state = START;
+                    else if (byte == FLAG) state = FLAGRCV;
+                    else state = INIT;
                     break;
 
                 case DESTUFF:

@@ -7,6 +7,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <signal.h>
+#include <stdbool.h>
 #include "../include/state_machines.h"
 #include "../include/link_layer.h"
 
@@ -22,19 +23,24 @@ int res = 0x00;
 state_t state;
 extern int alarmEnabled;
 extern int alarmCount;
-unsigned char info_frameTx = 0;
+extern char info_frameTx;
 unsigned char info_frameRx = 1;
 int nRetransmitions = 0;
+unsigned char byte;
+unsigned char Ccontrol;
 
 
 
 void state_machine(int type_machine, int fd) {
 
 state = INIT;
-unsigned char payload[MAX_PAYLOAD_SIZE] = {0};
+unsigned char payload[7] = {0};
 int index = 0;
 unsigned char all_done = 0;
 unsigned char rejected = 0;
+unsigned char byte, Ccontrol, bcc2;
+unsigned char *received_payload = (unsigned char *) malloc(7);
+int size = 0;
 
 switch (type_machine)
 {
@@ -83,16 +89,18 @@ case 0:
                 }
             }
         }*/
+        
+        unsigned char *frame = (unsigned char *) malloc(7);
         while (alarmCount < 4){
         alarmEnabled = FALSE;
         alarm(3);
 
         while (alarmEnabled == FALSE && !rejected && !all_done) {
-            write(fd, frame, frame_index);
+            write(fd, frame, 7);
 
-            unsigned char Ccontrol = 0;
+            Ccontrol = 0;
             state_t state = INIT;
-            unsigned char byte = 0;
+            byte = 0;
 
             while (state != DONE && alarmEnabled == FALSE) {  
                 if (read(fd, &byte, 1) > 0) {
@@ -214,7 +222,7 @@ case 1:
                     else if (byte == 0x0B) {
                             unsigned char FRAME[5] = {FLAG, 0x01, 0x0B, 0x01 ^ 0x0B, FLAG};
                             write(fd, FRAME, 5);
-                            return 0;
+                            //return 0;
                     }
                     else state = INIT;
                     break;
@@ -235,13 +243,13 @@ case 1:
                             unsigned char FRAME[5] = {FLAG, 0x01, C_RR(info_frameRx), 0x01 ^ C_RR(info_frameRx), FLAG};
                             write(fd, FRAME, 5);
                             info_frameRx = (info_frameRx + 1)%2;
-                            return size;
+                            //return size;
                         }
                         else{
                             printf("Error: retransmition\n");
                             unsigned char FRAME[5] = {FLAG, 0x01, C_RJ(info_frameRx), 0x01 ^ C_RJ(info_frameRx), FLAG};
                             write(fd, FRAME, 5);
-                            return -1;
+                            //return -1;
                         }
                     }
                     else{
@@ -260,7 +268,7 @@ default:
 }
 }
 
-int destuffing(unsigned char *payload){
+/*int destuffing(unsigned char *payload){
     unsigned char final_payload[MAX_PAYLOAD_SIZE] = {0};
     int res = 0;
     for (int i = 0; i < MAX_PAYLOAD_SIZE; i++){
@@ -279,14 +287,14 @@ int destuffing(unsigned char *payload){
     for (int i = 0; i < MAX_PAYLOAD_SIZE; i++){
         res = final_payload[i] ^ res;
     }
-}
+}*/
 
    
 
-void stuffing(unsigned char *payload){
+/*void stuffing(unsigned char *payload){
     unsigned char send_payload[MAX_PAYLOAD_SIZE] = {0};
     int second_index = 0;
-    for (int i = 0; i < MAX_PAYLOAD_SIZE /*- 1*/; i++){
+    for (int i = 0; i < MAX_PAYLOAD_SIZE - 1; i++){
         if (payload[i] == FLAG){
             send_payload[i + second_index] = ESC; 
             second_index++;
@@ -301,4 +309,4 @@ void stuffing(unsigned char *payload){
             send_payload[i + second_index] = payload[i];
         }
     }
-}
+}*/

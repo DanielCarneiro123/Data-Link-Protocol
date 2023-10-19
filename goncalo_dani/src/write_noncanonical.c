@@ -27,6 +27,7 @@
 
 int alarmEnabled = FALSE;
 int alarmCount = 0;
+unsigned char info_frameTx = 0;
 
 #define FLAG 0x7E
 #define AC_SND 0x03
