@@ -28,9 +28,10 @@
 extern int alarmEnabled;
 extern int alarmCount;
 int nRetransmissions = 0;
-int timeout = 0;
+int timeout = 3;
 unsigned char info_frameTx = 0;
 unsigned char info_frameRx = 1;
+unsigned char BCC2 = 0;
 
 state_t state;
 
@@ -45,7 +46,8 @@ state_t state;
 unsigned char *stuffing(const unsigned char *payload, int size)
 {
     printf("stuffing\n");
-    unsigned char *send_payload = (unsigned char *)malloc(size * 2); // Make it big enough for worst-case scenario
+    unsigned char *send_payload = (unsigned char *)malloc(size); // Make it big enough for worst-case scenario
+    printf("Size Stuffing: %x\n", size);
 
     if (send_payload == NULL)
     {
@@ -55,6 +57,7 @@ unsigned char *stuffing(const unsigned char *payload, int size)
     int send_index = 0;
     for (int i = 0; i < size; i++)
     {
+        
         if (payload[i] == FLAG)
         {
             send_payload[send_index++] = ESC;
@@ -70,13 +73,36 @@ unsigned char *stuffing(const unsigned char *payload, int size)
             send_payload[send_index++] = payload[i];
         }
     }
+    
+    BCC2 = send_payload[0];
+    for (int i = 1; i < size; i++)
+    {
+        BCC2 ^= send_payload[i];
+    }
+
+    // so para debug
+    for (int i = 0; i < size; i++){
+        printf("stuffing:%x\n", send_payload[i]);
+    }
 
     return send_payload;
 }
 
+
 int destuffing(unsigned char *payload, int size)
 {
     printf("destuffing\n");
+
+    int res = payload[0];
+    //printf("nao entrou no ciclo %02X\n", final_payload[0]);
+    printf("%02X\n", payload[0]);
+    
+    for (int i = 1; i < size; i++)
+    {
+        res ^= payload[i];
+        printf("destuffing: %02X\n", payload[i]);
+    }
+
     unsigned char *final_payload = (unsigned char *)malloc(size); // Make it big enough for worst-case scenario
 
     if (final_payload == NULL)
@@ -84,7 +110,6 @@ int destuffing(unsigned char *payload, int size)
         return -1;
     }
 
-    int res = 0;
     int final_index = 0;
     for (int i = 0; i < size; i++)
     {
@@ -106,14 +131,12 @@ int destuffing(unsigned char *payload, int size)
             final_payload[final_index++] = payload[i];
         }
     }
-
-    res = final_payload[0];
-
+    
     for (int i = 1; i < final_index; i++)
     {
-        res ^= final_payload[i];
+        printf("destuffing: %02X\n", final_payload[i]);
     }
-    printf("%02X\n", final_payload[0]);
+
     free(final_payload); // Free memory allocated for final_payload
 
     return res;
@@ -144,11 +167,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize)
         frame[frame_index++] = stuffedPayload[i];
     }
 
-    unsigned char BCC2 = stuffedPayload[0];
-    for (int i = 1; i < bufSize; i++)
-    {
-        BCC2 ^= stuffedPayload[i];
-    }
+
     frame[frame_index++] = BCC2;
     frame[frame_index++] = FLAG;
 
@@ -157,22 +176,28 @@ int llwrite(int fd, const unsigned char *buf, int bufSize)
 
     while (nRetransmissions < 3)
     {
+        //printf("while 0\n");
         alarmEnabled = FALSE;
         alarm(timeout);
 
         while (alarmEnabled == FALSE && !rejected && !all_done)
         {
+            //printf("while 1\n");
             write(fd, frame, frame_index);
 
             unsigned char Ccontrol = 0;
             state_t state = INIT;
             unsigned char byte = 0;
+            
+            //printf("%d\n", (int)state);
 
             while (state != DONE && alarmEnabled == FALSE)
             {
-                if (read(fd, &byte, 1) > 0)
+                //printf("%d\n", (int)state);
+                if (read(fd, &byte, 1) > 0 || 1)
                 {
-                    printf("%02X\n", byte);
+                    printf("BYTE: %02X\n", byte);
+                    break;
                     switch (state)
                     {
                         case INIT:
@@ -180,7 +205,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize)
                                 state = FLAGRCV;
                             break;
                         case FLAGRCV:
-                            if (byte == 0x03)
+                            if (byte == 0x01)
                                 state = A_RCV;
                             else if (byte != FLAG)
                                 state = INIT;
@@ -197,7 +222,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize)
                                 state = INIT;
                             break;
                         case CRCV:
-                            if (byte == (0x03 ^ Ccontrol))
+                            if (byte == (0x01 ^ Ccontrol))
                                 state = BCCOK;
                             else if (byte == FLAG)
                                 state = FLAGRCV;
@@ -261,10 +286,11 @@ int llread(int fd, unsigned char *packet, int payload_size)
 {
     printf("in llread\n");
     // aqui colocar também caso recebemos um SET, mandarmos outro UA tal como no llopen (mas agora fazer isto mesmo aqui no llreade, e depois dar return 0 para que nao seja somado mais um na app)
-    unsigned char byte, Ccontrol, bcc2;
+    unsigned char byte, Ccontrol;
     state_t state = INIT;
-    unsigned char *received_payload = (unsigned char *)malloc(payload_size * 2); // Make it big enough for worst-case scenario
-
+    unsigned char *received_payload = (unsigned char *)malloc(payload_size); // Make it big enough for worst-case scenario
+    printf("payload_size: %x\n", payload_size);
+    
     if (received_payload == NULL)
     {
         return -1;
@@ -276,7 +302,7 @@ int llread(int fd, unsigned char *packet, int payload_size)
     {
         if (read(fd, &byte, 1) > 0)
         {
-            printf("byte\n");
+            //printf("%02X\n", byte);
             switch (state)
             {
                 case INIT:
@@ -299,10 +325,10 @@ int llread(int fd, unsigned char *packet, int payload_size)
                         state = FLAGRCV;
                     else if (byte == 0x0B)
                     {
-                        unsigned char FRAME[5] = {FLAG, 0x01, 0x0B, 0x01 ^ 0x0B, FLAG};
-                        write(fd, FRAME, 5);
+                        unsigned char FRAME1[5] = {FLAG, 0x01, 0x0B, 0x01 ^ 0x0B, FLAG};
+                        write(fd, FRAME1, 5);
                         free(received_payload); // Free memory allocated for received_payload
-                        return 0;
+                        return size;
                     }
                     else
                         state = INIT;
@@ -320,12 +346,16 @@ int llread(int fd, unsigned char *packet, int payload_size)
                     {
                         received_payload[size - 1] = 0;
                         size--;
+                        printf("Size: %x:\n", size);
+
                         int bcc2_res = destuffing(received_payload, size);
-                        if (bcc2_res == bcc2)
+                        printf("bcc2_res = %02X\n", bcc2_res);
+                        printf("bcc2 = %02X\n", BCC2);
+                        if (bcc2_res == BCC2)
                         {
                             state = DONE;
-                            unsigned char FRAME[5] = {FLAG, 0x01, C_RR(info_frameRx), 0x01 ^ C_RR(info_frameRx), FLAG};
-                            write(fd, FRAME, 5);
+                            unsigned char FRAME1[5] = {FLAG, 0x01, C_RR(info_frameRx), 0x01 ^ C_RR(info_frameRx), FLAG};
+                            write(fd, FRAME1, 5);
                             info_frameRx = (info_frameRx + 1) % 2;
                             free(received_payload); // Free memory allocated for received_payload
                             return size;
@@ -333,16 +363,17 @@ int llread(int fd, unsigned char *packet, int payload_size)
                         else
                         {
                             printf("Error: retransmission\n");
-                            unsigned char FRAME[5] = {FLAG, 0x01, C_RJ(info_frameRx), 0x01 ^ C_RJ(info_frameRx), FLAG};
-                            write(fd, FRAME, 5);
+                            unsigned char FRAME1[5] = {FLAG, 0x01, C_RJ(info_frameRx), 0x01 ^ C_RJ(info_frameRx), FLAG};
+                            write(fd, FRAME1, 5);
                             free(received_payload); // Free memory allocated for received_payload
-                            return 0; // A rejected is not an error; it just means receiving zero bytes, so ignore the operation
+                            return size; // A rejected is not an error; it just means receiving zero bytes, so ignore the operation
                         }
                     }
                     else
-                    {
+                    {  
                         received_payload[size] = byte;
-                        bcc2 = byte;
+                        printf("Byte: %x\n", byte);
+                        BCC2 = byte;
                         size++;
                     }
                     break;

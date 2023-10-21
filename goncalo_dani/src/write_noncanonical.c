@@ -113,22 +113,20 @@ int main(int argc, char *argv[])
 
 
     printf("New termios structure set\n");
-    
+
     unsigned char buf2[BUF_SIZE] = {0};
-        buf2[0] = FLAG;
-        buf2[1] = 0x03;
-        buf2[2] = C_I(0);
-        buf2[3] = (buf2[1] ^ buf2[2]) & 0xFF;
-        buf2[4] = 0x02;
-        buf2[5] = 0x02;
-        buf2[6] = FLAG;
+        buf2[0] = 0x7e;
+        buf2[1] = 0x7e;
+        buf2[2] = 0x7e;
+        buf2[3] = 0x7e;
+        buf2[4] = 0x7e;
+        buf2[5] = 0x7e;
+        buf2[6] = 0x7e;
 
     int res = 0;
     while(((alarmCount<4 && alarmEnabled == 0)) && state != DONE){
-        
-
         printf("writing\n");
-        res = llwrite(fd, buf2, 1);
+        res = llwrite(fd, buf2, 14);
     }
 
 

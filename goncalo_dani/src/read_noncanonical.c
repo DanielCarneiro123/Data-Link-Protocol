@@ -96,10 +96,14 @@ int main(int argc, char *argv[])
 
     printf("New termios structure set\n");
    
-    unsigned char *buf= (unsigned char *) malloc(7);
-    int res = llread(fd, buf, 7);
+    unsigned char *buf= (unsigned char *) malloc(14);
+    int res = llread(fd, buf, 14);
+
+    write(fd, res, 5);
+
+
         
-    //enviar o UA 
+    /*
     unsigned char buf2[BUF_SIZE] = {0};
     
     buf2[0] = FLAG;
@@ -108,8 +112,8 @@ int main(int argc, char *argv[])
     buf2[3] = (buf2[1] ^ buf2[2]) & 0xFF;
     buf2[4] = FLAG;
     
-    int bytes = write(fd, buf2, BUF_SIZE);
-    printf("%d bytes written \n", bytes);
+    int bytes = write(fd, buf2, BUF_SIZE);*/
+    //printf("%d bytes written \n", bytes);
     
 
 
@@ -125,5 +129,5 @@ int main(int argc, char *argv[])
 
     close(fd);
 
-    return res;
+    return 0;
 }
