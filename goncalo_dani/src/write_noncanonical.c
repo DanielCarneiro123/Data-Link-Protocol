@@ -27,7 +27,6 @@
 
 int alarmEnabled = FALSE;
 int alarmCount = 0;
-unsigned char info_frameTx = 0;
 
 #define FLAG 0x7E
 #define AC_SND 0x03
@@ -112,12 +111,24 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    printf("New termios structure set\n");
 
+    printf("New termios structure set\n");
+    
+    unsigned char buf2[BUF_SIZE] = {0};
+        buf2[0] = FLAG;
+        buf2[1] = 0x03;
+        buf2[2] = C_I(0);
+        buf2[3] = (buf2[1] ^ buf2[2]) & 0xFF;
+        buf2[4] = 0x02;
+        buf2[5] = 0x02;
+        buf2[6] = FLAG;
 
     int res = 0;
     while(((alarmCount<4 && alarmEnabled == 0)) && state != DONE){
-        res = llwrite(fd, buf, 7);
+        
+
+        printf("writing\n");
+        res = llwrite(fd, buf2, 1);
     }
 
 

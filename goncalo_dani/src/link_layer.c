@@ -26,7 +26,7 @@
 #define SET 0x03
 
 extern int alarmEnabled;
-int alarmCount = 0;
+extern int alarmCount;
 int nRetransmissions = 0;
 int timeout = 0;
 unsigned char info_frameTx = 0;
@@ -44,6 +44,7 @@ state_t state;
 */
 unsigned char *stuffing(const unsigned char *payload, int size)
 {
+    printf("stuffing\n");
     unsigned char *send_payload = (unsigned char *)malloc(size * 2); // Make it big enough for worst-case scenario
 
     if (send_payload == NULL)
@@ -52,7 +53,7 @@ unsigned char *stuffing(const unsigned char *payload, int size)
     }
 
     int send_index = 0;
-    for (int i = 4; i < size; i++)
+    for (int i = 0; i < size; i++)
     {
         if (payload[i] == FLAG)
         {
@@ -75,6 +76,7 @@ unsigned char *stuffing(const unsigned char *payload, int size)
 
 int destuffing(unsigned char *payload, int size)
 {
+    printf("destuffing\n");
     unsigned char *final_payload = (unsigned char *)malloc(size); // Make it big enough for worst-case scenario
 
     if (final_payload == NULL)
@@ -105,11 +107,13 @@ int destuffing(unsigned char *payload, int size)
         }
     }
 
-    for (int i = 0; i < final_index; i++)
+    res = final_payload[0];
+
+    for (int i = 1; i < final_index; i++)
     {
         res ^= final_payload[i];
     }
-
+    printf("%02X\n", final_payload[0]);
     free(final_payload); // Free memory allocated for final_payload
 
     return res;
@@ -117,6 +121,7 @@ int destuffing(unsigned char *payload, int size)
 
 int llwrite(int fd, const unsigned char *buf, int bufSize)
 {
+    printf("in llwrite\n");
     int frameSize = bufSize + 6;
     unsigned char *frame = (unsigned char *)malloc(frameSize);
 
@@ -147,11 +152,10 @@ int llwrite(int fd, const unsigned char *buf, int bufSize)
     frame[frame_index++] = BCC2;
     frame[frame_index++] = FLAG;
 
-    int alarmCount = 0;
     bool all_done = false;
     bool rejected = false;
 
-    while (alarmCount < nRetransmissions)
+    while (nRetransmissions < 3)
     {
         alarmEnabled = FALSE;
         alarm(timeout);
@@ -168,6 +172,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize)
             {
                 if (read(fd, &byte, 1) > 0)
                 {
+                    printf("%02X\n", byte);
                     switch (state)
                     {
                         case INIT:
@@ -254,6 +259,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize)
 
 int llread(int fd, unsigned char *packet, int payload_size)
 {
+    printf("in llread\n");
     // aqui colocar também caso recebemos um SET, mandarmos outro UA tal como no llopen (mas agora fazer isto mesmo aqui no llreade, e depois dar return 0 para que nao seja somado mais um na app)
     unsigned char byte, Ccontrol, bcc2;
     state_t state = INIT;
@@ -270,6 +276,7 @@ int llread(int fd, unsigned char *packet, int payload_size)
     {
         if (read(fd, &byte, 1) > 0)
         {
+            printf("byte\n");
             switch (state)
             {
                 case INIT:
