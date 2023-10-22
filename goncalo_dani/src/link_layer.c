@@ -43,12 +43,13 @@ state_t state;
     state = INIT;
     timeout = connectionParameters.timeout;
     nRetransmissions = connectionParameters.nRetransmissions;
+    unsigned char byte;
 
     switch (connectionParameters.role)
     {
     case LlTx:
         (void)signal(SIGALRM, alarmHandler);
-        while(((alarmCount < 4 && alarmEnabled == 0)) && state != DONE){
+        while(((nRetransmissions != 0 && alarmEnabled == 0)) && state != DONE){  //o fabio aqui tem connectionParameters.nRetransmissions
         printf("dentro do while\n");
 
         // Create string to send
@@ -56,9 +57,9 @@ state_t state;
 
 
         buf[0] = FLAG;
-        buf[1] = AC_SND;
+        buf[1] = A_RCV;
         buf[2] = SET;
-        buf[3] = (AC_SND ^ SET) & 0xFF;
+        buf[3] = (A_RCV ^ SET) & 0xFF;
         buf[4] = FLAG;
 
         int bytes = write(fd, buf, BUF_SIZE);
@@ -68,8 +69,7 @@ state_t state;
         alarmEnabled = 1;
 
         while (alarmEnabled==1 && state != FINAL){
-            unsigned char byte;
-            int nBytes = read(fd,&byte,1);
+            int nBytes = read(fd,byte,1);
             
             if (nBytes>0){
                 switch(state){
@@ -96,7 +96,7 @@ state_t state;
                     case ERROR:
                         printf("byte nr error: %x\n",(unsigned int) byte & 0xFF);
                         break;
-                        //res = res ^ byte[0];
+                        //res = res ^ byte;
                         //else state = ERROR;
                     case FINAL:
                         printf("byte nr 5: %x\n",(unsigned int) byte & 0xFF);
@@ -119,37 +119,36 @@ state_t state;
 
     case LlRx:
         while(state != STOP){
-            unsigned char byte[1] = {0};
             int nBytes = read(fd,byte,1);
                 
             if (nBytes>0){
                 switch(state){
                     case INIT:
-                        printf("byte nr 1: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if (byte[0]==FLAG) state = FLAGRCV;
+                        printf("byte nr 1: %x\n",(unsigned int) byte & 0xFF);
+                        if (byte==FLAG) state = FLAGRCV;
                         else state = INIT;
                         break;
                     case FLAGRCV:
-                        printf("byte nr 2: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if (byte[0]==AC_SND) state = ARCV;
-                        else if (byte[0]==FLAG) state = FLAGRCV;
+                        printf("byte nr 2: %x\n",(unsigned int) byte & 0xFF);
+                        if (byte==AC_SND) state = ARCV;
+                        else if (byte==FLAG) state = FLAGRCV;
                         else state = INIT;
                         break;
                     case ARCV:
-                        printf("byte nr 3: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]==SET) state = CRCV;
-                        else if (byte[0]==FLAG) state = FLAGRCV;
+                        printf("byte nr 3: %x\n",(unsigned int) byte & 0xFF);
+                        if(byte==SET) state = CRCV;
+                        else if (byte==FLAG) state = FLAGRCV;
                         else state = INIT;
                         break;
                     case CRCV:
-                        printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0] == (AC_SND ^ SET)) state = BCCOK;
-                        else if(byte[0]== FLAG) state = FLAGRCV;
+                        printf("byte nr 4: %x\n",(unsigned int) byte & 0xFF);
+                        if(byte == (AC_SND ^ SET)) state = BCCOK;
+                        else if(byte== FLAG) state = FLAGRCV;
                         else state = INIT;
                         break;
                     case BCCOK:
-                        printf("byte nr 5: %x\n",(unsigned int) byte[0] & 0xFF);
-                        if(byte[0]==FLAG) {
+                        printf("byte nr 5: %x\n",(unsigned int) byte & 0xFF);
+                        if(byte==FLAG) {
                             state = STOP;
                             printf("All done\n");
                         }
