@@ -25,8 +25,8 @@
 #define BUF_SIZE 7
 
 
-int alarmEnabled = FALSE;
-int alarmCount = 0;
+extern int alarmEnabled;
+extern int alarmCount;
 
 #define FLAG 0x7E
 #define AC_SND 0x03

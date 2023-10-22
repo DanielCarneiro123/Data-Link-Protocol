@@ -28,7 +28,6 @@
 #define A_RCV 0x01
 #define UA 0x07
 #define SET 0x03
-int alarmEnabled = FALSE;
 
 
 int main(int argc, char *argv[])
@@ -99,7 +98,7 @@ int main(int argc, char *argv[])
     unsigned char *buf= (unsigned char *) malloc(14);
     int res = llread(fd, buf, 14);
 
-    write(fd, res, 5);
+    printf("%02X\n", res);
 
 
         
@@ -129,5 +128,5 @@ int main(int argc, char *argv[])
 
     close(fd);
 
-    return 0;
+    return res;
 }
