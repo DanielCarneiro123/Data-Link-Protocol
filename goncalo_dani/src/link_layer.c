@@ -14,7 +14,7 @@
 
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
-#define BAUDRATE 38400
+
 #define BUF_SIZE 5
 
 #define ESC 0x7D // Define ESC
@@ -51,15 +51,15 @@ state_t state;
 
         (void)signal(SIGALRM, alarmHandler);
 
-        while(((nRetransmissions != 0 && alarmEnabled == 0)) && state != DONE){  //o fabio aqui tem connectionParameters.nRetransmissions
+        while(((connectionParameters.nRetransmissions != 0 && alarmEnabled == 0)) && state != DONE){  //o fabio aqui tem connectionParameters.nRetransmissions
         printf("dentro do while\n");
 
         // Create string to send
         unsigned char buf[BUF_SIZE] = {0};
         buf[0] = FLAG;
-        buf[1] = A_RCV;
+        buf[1] = AC_SND;
         buf[2] = SET;
-        buf[3] = (A_RCV ^ SET) & 0xFF;
+        buf[3] = (AC_SND ^ SET) & 0xFF;
         buf[4] = FLAG;
         int bytes = write(fd, buf, BUF_SIZE);
         printf("%d bytes written\n", bytes);
@@ -68,7 +68,9 @@ state_t state;
         alarmEnabled = 1;
 
         while (alarmEnabled==1 && state != FINAL){
-            int nBytes = read(fd,byte,1);
+            printf("vai ler\n");
+            int nBytes = read(fd,&byte,1);
+            printf("leu\n");
             
             if (nBytes>0){
                 switch(state){
@@ -89,14 +91,9 @@ state_t state;
                         break;
                     case BCCSTATE:
                         printf("byte nr 4: %x\n",(unsigned int) byte & 0xFF);
-                        if(byte== ((A_RCV ^ UA) & 0xFF)) state = FINAL;
+                        if(byte == (6)) state = FINAL;
                         else state = ERROR;
                         break;
-                    case ERROR:
-                        printf("byte nr error: %x\n",(unsigned int) byte & 0xFF);
-                        break;
-                        //res = res ^ byte;
-                        //else state = ERROR;
                     case FINAL:
                         printf("byte nr 5: %x\n",(unsigned int) byte & 0xFF);
                         if(byte==FLAG) {
@@ -107,6 +104,11 @@ state_t state;
                         }
                         else state = ERROR;                      
                         break;
+                    case ERROR:
+                        printf("byte nr error: %x\n",(unsigned int) byte & 0xFF);
+                        break;
+                        //res = res ^ byte;
+                        //else state = ERROR;
                     default:
                         break;
                     }
@@ -120,35 +122,35 @@ state_t state;
 
     case LlRx:
         while(state != STOP){
-            int nBytes = read(fd,byte,1);
+            int nBytes = read(fd,&byte,1);
                 
             if (nBytes>0){
                 switch(state){
                     case INIT:
-                        printf("byte nr 1: %x\n",(unsigned int) byte & 0xFF);
+                        printf("Byte nr 1: %x\n",(unsigned int) byte & 0xFF);
                         if (byte==FLAG) state = FLAGRCV;
                         else state = INIT;
                         break;
                     case FLAGRCV:
-                        printf("byte nr 2: %x\n",(unsigned int) byte & 0xFF);
+                        printf("Byte nr 2: %x\n",(unsigned int) byte & 0xFF);
                         if (byte==AC_SND) state = ARCV;
                         else if (byte==FLAG) state = FLAGRCV;
                         else state = INIT;
                         break;
                     case ARCV:
-                        printf("byte nr 3: %x\n",(unsigned int) byte & 0xFF);
+                        printf("Byte nr 3: %x\n",(unsigned int) byte & 0xFF);
                         if(byte==SET) state = CRCV;
                         else if (byte==FLAG) state = FLAGRCV;
                         else state = INIT;
                         break;
                     case CRCV:
-                        printf("byte nr 4: %x\n",(unsigned int) byte & 0xFF);
+                        printf("Byte nr 4: %x\n",(unsigned int) byte & 0xFF);
                         if(byte == (AC_SND ^ SET)) state = BCCOK;
                         else if(byte== FLAG) state = FLAGRCV;
                         else state = INIT;
                         break;
                     case BCCOK:
-                        printf("byte nr 5: %x\n",(unsigned int) byte & 0xFF);
+                        printf("Byte nr 5: %x\n",(unsigned int) byte & 0xFF);
                         if(byte==FLAG) {
                             state = STOP;
                             printf("All done\n");
@@ -158,12 +160,18 @@ state_t state;
                     }
                 }
             }
-            unsigned char buf2[5] = {0};
+            unsigned char buf2[BUF_SIZE] = {0};
             buf2[0] = FLAG;
             buf2[1] = A_RCV;
             buf2[2] = UA;
             buf2[3] = (A_RCV ^ UA) & 0xFF;
             buf2[4] = FLAG;
+            for (int i = 0; i < 5; i++) {
+                printf("0x%02X", buf2[i]);
+                if (i < 4) {
+                    printf(", ");
+                }
+            }
             int bytes = write(fd, buf2, BUF_SIZE);
             printf("%d bytes written \n", bytes);
             break;
