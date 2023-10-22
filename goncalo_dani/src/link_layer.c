@@ -47,21 +47,20 @@ state_t state;
 
     switch (connectionParameters.role)
     {
-    case LlTx:
+    case LlTx: {
+
         (void)signal(SIGALRM, alarmHandler);
+
         while(((nRetransmissions != 0 && alarmEnabled == 0)) && state != DONE){  //o fabio aqui tem connectionParameters.nRetransmissions
         printf("dentro do while\n");
 
         // Create string to send
         unsigned char buf[BUF_SIZE] = {0};
-
-
         buf[0] = FLAG;
         buf[1] = A_RCV;
         buf[2] = SET;
         buf[3] = (A_RCV ^ SET) & 0xFF;
         buf[4] = FLAG;
-
         int bytes = write(fd, buf, BUF_SIZE);
         printf("%d bytes written\n", bytes);
         
@@ -108,14 +107,16 @@ state_t state;
                         }
                         else state = ERROR;                      
                         break;
+                    default:
+                        break;
+                    }
                 }
             }
             connectionParameters.nRetransmissions--;
         }
         if (state != FINAL) return -1;
-            break; 
+            break;
     }
-    break;
 
     case LlRx:
         while(state != STOP){
