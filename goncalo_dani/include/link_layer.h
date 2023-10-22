@@ -19,6 +19,23 @@ typedef struct
     int timeout;
 } LinkLayer;
 
+typedef enum{
+    INIT,
+    ASTATE,
+    CSTATE,
+    BCCSTATE,
+    FINAL,
+    ERROR,
+    DONE,
+    DATA,
+    FLAGRCV,
+    ARCV,
+    CRCV,
+    BCCOK,
+    DESTUFF,
+    STOP
+} state_t;
+
 // SIZE of maximum acceptable payload.
 // Maximum number of bytes that application layer should send to link layer
 #define MAX_PAYLOAD_SIZE 1000
@@ -28,8 +45,8 @@ typedef struct
 #define TRUE 1
 #define ESC 0x7D
 #define C_I(Ns) (Ns << 6)
-#define C_RR(N) (N << 7)
-#define C_RJ(N) (N << 7)
+#define C_RR(N) (N << 7 | 0x05)
+#define C_RJ(N) (N << 7 | 0x01)
 
 // Open a connection using the "port" parameters defined in struct linkLayer.
 // Return "1" on success or "-1" on error.
@@ -41,7 +58,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize);
 
 // Receive data in packet.
 // Return number of chars read, or "-1" on error.
-int llread(int fd, unsigned char *packet, int payload_size);
+int llread(int fd, unsigned char *packet);
 
 // Close previously opened connection.
 // if showStatistics == TRUE, link layer should print statistics in the console on close.
@@ -53,5 +70,7 @@ int connecting(const char *serialPortName);
 int destuffing(unsigned char *payload, int size);
 
 unsigned char *stuffing(const unsigned char *payload, int size);
+
+void alarmHandler(int signal);
 
 #endif // _LINK_LAYER_H_

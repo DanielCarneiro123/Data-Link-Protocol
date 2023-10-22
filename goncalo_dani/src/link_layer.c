@@ -10,7 +10,6 @@
 #include <unistd.h>
 #include <signal.h>
 #include <stdbool.h>
-#include "../include/state_machines.h"
 #include "../include/link_layer.h"
 
 // MISC
@@ -32,16 +31,157 @@ int timeout = 3;
 unsigned char info_frameTx = 0;
 unsigned char info_frameRx = 1;
 unsigned char BCC2 = 0;
+int stuffedPayload_size = 0;
 
 state_t state;
 
-/*void alarmHandler(int signal)
+ int llopen(LinkLayer connectionParameters)
+{
+    int fd = connecting(connectionParameters.serialPort);
+    if (fd < 0) return -1;
+    
+    state = INIT;
+    timeout = connectionParameters.timeout;
+    nRetransmissions = connectionParameters.nRetransmissions;
+
+    switch (connectionParameters.role)
+    {
+    case LlTx:
+        (void)signal(SIGALRM, alarmHandler);
+        while(((alarmCount < 4 && alarmEnabled == 0)) && state != DONE){
+        printf("dentro do while\n");
+
+        // Create string to send
+        unsigned char buf[BUF_SIZE] = {0};
+
+
+        buf[0] = FLAG;
+        buf[1] = AC_SND;
+        buf[2] = SET;
+        buf[3] = (AC_SND ^ SET) & 0xFF;
+        buf[4] = FLAG;
+
+        int bytes = write(fd, buf, BUF_SIZE);
+        printf("%d bytes written\n", bytes);
+        
+        alarm(connectionParameters.timeout);
+        alarmEnabled = 1;
+
+        while (alarmEnabled==1 && state != FINAL){
+            unsigned char byte;
+            int nBytes = read(fd,&byte,1);
+            
+            if (nBytes>0){
+                switch(state){
+                    case INIT:
+                        printf("byte nr 1: %x\n",(unsigned int) byte & 0xFF);
+                        if (byte==FLAG) state = ASTATE;
+                        else state = ERROR;
+                        break;
+                    case ASTATE:
+                        printf("byte nr 2: %x\n",(unsigned int) byte & 0xFF);
+                        if (byte==A_RCV) state = CSTATE;
+                        else state = ERROR;
+                        break;
+                    case CSTATE:
+                        printf("byte nr 3: %x\n",(unsigned int) byte & 0xFF);
+                        if(byte==UA) state = BCCSTATE;
+                        else state = ERROR;
+                        break;
+                    case BCCSTATE:
+                        printf("byte nr 4: %x\n",(unsigned int) byte & 0xFF);
+                        if(byte== ((A_RCV ^ UA) & 0xFF)) state = FINAL;
+                        else state = ERROR;
+                        break;
+                    case ERROR:
+                        printf("byte nr error: %x\n",(unsigned int) byte & 0xFF);
+                        break;
+                        //res = res ^ byte[0];
+                        //else state = ERROR;
+                    case FINAL:
+                        printf("byte nr 5: %x\n",(unsigned int) byte & 0xFF);
+                        if(byte==FLAG) {
+                            alarm(0);
+                            alarmEnabled=0;
+                            state = DONE;
+                            printf("All done\n");
+                        }
+                        else state = ERROR;                      
+                        break;
+                }
+            }
+            connectionParameters.nRetransmissions--;
+        }
+        if (state != FINAL) return -1;
+            break; 
+    }
+    break;
+
+    case LlRx:
+        while(state != STOP){
+            unsigned char byte[1] = {0};
+            int nBytes = read(fd,byte,1);
+                
+            if (nBytes>0){
+                switch(state){
+                    case INIT:
+                        printf("byte nr 1: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if (byte[0]==FLAG) state = FLAGRCV;
+                        else state = INIT;
+                        break;
+                    case FLAGRCV:
+                        printf("byte nr 2: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if (byte[0]==AC_SND) state = ARCV;
+                        else if (byte[0]==FLAG) state = FLAGRCV;
+                        else state = INIT;
+                        break;
+                    case ARCV:
+                        printf("byte nr 3: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if(byte[0]==SET) state = CRCV;
+                        else if (byte[0]==FLAG) state = FLAGRCV;
+                        else state = INIT;
+                        break;
+                    case CRCV:
+                        printf("byte nr 4: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if(byte[0] == (AC_SND ^ SET)) state = BCCOK;
+                        else if(byte[0]== FLAG) state = FLAGRCV;
+                        else state = INIT;
+                        break;
+                    case BCCOK:
+                        printf("byte nr 5: %x\n",(unsigned int) byte[0] & 0xFF);
+                        if(byte[0]==FLAG) {
+                            state = STOP;
+                            printf("All done\n");
+                        }
+                        else state = INIT;                      
+                        break;
+                    }
+                }
+            }
+            unsigned char buf2[5] = {0};
+            buf2[0] = FLAG;
+            buf2[1] = A_RCV;
+            buf2[2] = UA;
+            buf2[3] = (A_RCV ^ UA) & 0xFF;
+            buf2[4] = FLAG;
+            int bytes = write(fd, buf2, BUF_SIZE);
+            printf("%d bytes written \n", bytes);
+            break;
+    default:
+        return -1;
+        break;
+    }  
+    return fd; 
+}
+
+void alarmHandler(int signal)
 {
     alarmEnabled = FALSE;
     alarmCount++;
 
     printf("Alarm #%d\n", alarmCount);
-}*/
+}
+
 
 unsigned char *stuffing(const unsigned char *payload, int size)
 {
@@ -55,16 +195,21 @@ unsigned char *stuffing(const unsigned char *payload, int size)
     }
 
     int send_index = 0;
+    stuffedPayload_size = size;
     for (int i = 0; i < size; i++)
     {
         
         if (payload[i] == FLAG)
         {
+            send_payload = realloc(send_payload,++stuffedPayload_size);
             send_payload[send_index++] = ESC;
             send_payload[send_index++] = 0x5E;
+            
+
         }
         else if (payload[i] == ESC)
         {
+            send_payload = realloc(send_payload,++stuffedPayload_size);
             send_payload[send_index++] = ESC;
             send_payload[send_index++] = 0x5D;
         }
@@ -75,7 +220,7 @@ unsigned char *stuffing(const unsigned char *payload, int size)
     }
     
     BCC2 = send_payload[0];
-    for (int i = 1; i < size; i++)
+    for (int i = 1; i < stuffedPayload_size; i++)
     {
         BCC2 ^= send_payload[i];
     }
@@ -84,7 +229,6 @@ unsigned char *stuffing(const unsigned char *payload, int size)
     for (int i = 0; i < size; i++){
         printf("stuffing:%x\n", send_payload[i]);
     }
-
     return send_payload;
 }
 
@@ -157,10 +301,12 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
     frame[3] = frame[1] ^ frame[2];
     unsigned char Ccontrol;
     unsigned char *stuffedPayload = stuffing(buf, bufSize);
+    frame = realloc(frame,stuffedPayload_size+6);
+    
 
     int frame_index = 4;
 
-    for (int i = 0; i < bufSize; i++) {
+    for (int i = 0; i < stuffedPayload_size ; i++) {
         frame[frame_index++] = stuffedPayload[i];
     }
 
@@ -173,18 +319,18 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
     while (nRetransmissions < 3) {
         alarmEnabled = FALSE;
         alarm(timeout);
-
+        all_done = false;
+        rejected = false;
         while (alarmEnabled == FALSE && !rejected && !all_done) {
             write(fd, frame, frame_index);
 
-            unsigned char Ccontrol = 0;
+            Ccontrol = 0;
             state_t state = INIT;
             unsigned char byte = 0;
 
             while (state != DONE && alarmEnabled == FALSE) {
-                if (read(fd, &byte, 1) > 0) {
+                if (read(fd, &byte, 1) > 0 ) {
                     printf("BYTE: %02X\n", byte);
-
                     switch (state) {
                         case INIT:
                             if (byte == FLAG)
@@ -230,36 +376,40 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
             } else if (Ccontrol == C_RJ(0) || Ccontrol == C_RJ(1)) {
                 rejected = true;
             } else if (Ccontrol == C_RR(0) || Ccontrol == C_RR(1)) {
+                printf("ola");
                 all_done = true;
                 info_frameTx = (info_frameTx + 1) % 2;
             } else {
                 continue;
             }
         }
-        free(frame);
+
+        
 
         if (all_done) {
+            printf("adeus");
             break;
         }
         nRetransmissions++;
     }
+    
+    free(frame);
 
     if (all_done) {
-        return bufSize;
+        return frameSize;
     } else {
-        llclose(fd);
+        //llclose(fd);
         return -1;
     }
 }
 
 
-int llread(int fd, unsigned char *packet, int payload_size) {
+int llread(int fd, unsigned char *received_payload) {
     printf("in llread\n");
     // Aqui, você pode adicionar a lógica para enviar um UA se receber um SET, como mencionou
     unsigned char byte, Ccontrol;
     state_t state = INIT;
-    unsigned char *received_payload = (unsigned char *)malloc(payload_size); // Make it big enough for worst-case scenario
-    printf("payload_size: %x\n", payload_size);
+    //printf("payload_size: %x\n", payload_size);
 
     if (received_payload == NULL) {
         return -1;
@@ -289,8 +439,8 @@ int llread(int fd, unsigned char *packet, int payload_size) {
                         state = FLAGRCV;
                     else if (byte == 0x0B) {
                         unsigned char FRAME1[5] = {FLAG, 0x01, 0x0B, 0x01 ^ 0x0B, FLAG};
-                        free(received_payload); // Free memory allocated for received_payload
                         return write(fd, FRAME1, 5);
+                        break;
                     } else
                         state = INIT;
                     break;
@@ -315,13 +465,13 @@ int llread(int fd, unsigned char *packet, int payload_size) {
                             state = DONE;
                             unsigned char FRAME1[5] = {FLAG, 0x01, C_RR(info_frameRx), 0x01 ^ C_RR(info_frameRx), FLAG};
                             info_frameRx = (info_frameRx + 1) % 2;
-                            free(received_payload); // Free memory allocated for received_payload
                             return write(fd, FRAME1, 5);
+                            break;
                         } else {
                             printf("Error: retransmission\n");
                             unsigned char FRAME1[5] = {FLAG, 0x01, C_RJ(info_frameRx), 0x01 ^ C_RJ(info_frameRx), FLAG};
-                            free(received_payload); // Free memory allocated for received_payload
                             return write(fd, FRAME1, 5);
+                            break;
                         }
                     } else {
                         received_payload[size] = byte;
@@ -333,23 +483,66 @@ int llread(int fd, unsigned char *packet, int payload_size) {
             }
         }
     }
-    free(received_payload); // Liberar a memória no final da função
     return -1;
 }
 
 
-int llclose(int showStatistics)
-{
-    // TODO
+int llclose(int fd){
 
-    return 1;
+    state_t state = INIT;
+    unsigned char byte;
+    (void) signal(SIGALRM, alarmHandler);
+    
+    while (nRetransmissions != 0 && state != DONE) {
+                
+        unsigned char FRAME1[5] = {FLAG, 0x03, 0x0B, 0x03 ^ 0x0B, FLAG};
+        write(fd, FRAME1, 5);
+        alarm(timeout);
+        alarmEnabled = FALSE;
+                
+        while (alarmEnabled == FALSE && state != DONE) {
+            if (read(fd, &byte, 1) > 0) {
+                switch (state) {
+                    case INIT:
+                        if (byte == FLAG) state = FLAGRCV;
+                        break;
+                    case FLAGRCV:
+                        if (byte == 0x01) state = ARCV;
+                        else if (byte != FLAG) state = INIT;
+                        break;
+                    case ARCV:
+                        if (byte == 0x0B) state = CRCV;
+                        else if (byte == FLAG) state = FLAGRCV;
+                        else state = INIT;
+                        break;
+                    case CRCV:
+                        if (byte == (0x01 ^ 0x0B)) state = BCCOK;
+                        else if (byte == FLAG) state = FLAGRCV;
+                        else state = INIT;
+                        break;
+                    case BCCOK:
+                        if (byte == FLAG) state = DONE;
+                        else state = INIT;
+                        break;
+                    default: 
+                        break;
+                }
+            }
+        } 
+        nRetransmissions--;
+    }
+
+    if (state != DONE) return -1;
+    unsigned char FRAME2[5] = {FLAG, 0x03, 0x07, 0x03 ^ 0x07, FLAG};
+    write(fd, FRAME2, 5);
+    return close(fd);
 }
 
-/*int connecting(const char *serialPortName)
+int connecting(const char *serialPortName)
 {
-    int fd = open(serialPort, O_RDWR | O_NOCTTY);
+    int fd = open(serialPortName, O_RDWR | O_NOCTTY);
     if (fd < 0) {
-        perror(serialPort);
+        perror(serialPortName);
         return -1; 
     }
 
@@ -380,4 +573,3 @@ int llclose(int showStatistics)
 
     return fd;
 }
-*/
