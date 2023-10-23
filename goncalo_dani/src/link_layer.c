@@ -234,7 +234,7 @@ unsigned char *stuffing(const unsigned char *payload, int size)
     }
 
     // so para debug
-    printf("Afther stuffing:\n");
+    printf("After stuffing:\n");
     for (int i = 0; i < stuffedPayload_size; i++){
         printf("stuffing:%x\n", send_payload[i]);
     }
@@ -249,54 +249,15 @@ int destuffing(unsigned char *payload, int size)
     //printf("nao entrou no ciclo %02X\n", final_payload[0]);
     printf("%02X\n", payload[0]);
 
-    unsigned char *final_payload = (unsigned char *)malloc(size); // Make it big enough for worst-case scenario
+    bcc2_res = payload[0];
 
-    if (final_payload == NULL)
+    for (int i = 1; i < size; i++)
     {
-        return -1;
+        bcc2_res ^= payload[i];
+        printf("destuffing: %02X\n", payload[i]);
     }
 
-    int final_index = 0;
-    int final_payload_size = size;
-    for (int i = 0; i < size; i++)
-    {
-        if (payload[i] == ESC)
-        {
-            if (payload[i + 1] == 0x5E)
-            {
-                final_payload = realloc(final_payload, --final_payload_size);
-                final_payload[final_index++] = FLAG;
-                i++;
-            }
-            else if (payload[i + 1] == 0x5D)
-            {
-                final_payload = realloc(final_payload, --final_payload_size);
-                final_payload[final_index++] = ESC;
-                i++;
-            }
-        }
-        else
-        {
-            final_payload[final_index++] = payload[i];
-        }
-    }
-
-    bcc2_res = final_payload[0];
-
-    for (int i = 1; i < final_index; i++)
-    {
-        bcc2_res ^= final_payload[i];
-        printf("destuffing: %02X\n", final_payload[i]);
-    }
-    
-    for (int i = 1; i < final_index; i++)
-    {
-        printf("destuffing: %02X\n", final_payload[i]);
-    }
-
-    free(final_payload); // Free memory allocated for final_payload
-
-    return final_index;
+    return bcc2_res;
 }
 
 int llwrite(int fd, const unsigned char *buf, int bufSize) {
@@ -464,12 +425,12 @@ int llread(int fd, unsigned char *received_payload) {
                         state = INIT;
                     break;
                 case DESTUFF:
-                    if (byte == FLAG) {
+                    if (byte == ESC) state = ESCAPE;
+                    else if (byte == FLAG) {
                         received_payload[size - 1] = 0;
                         size--;
                         printf("Size: %x:\n", size);
-
-                        size = destuffing(received_payload, size);
+                        bcc2_res = destuffing(received_payload, size);
                         printf("bcc2_res = %02X\n", bcc2_res);
                         printf("bcc2 = %02X\n", BCC2);
                         if (bcc2_res == BCC2) {
@@ -491,6 +452,28 @@ int llread(int fd, unsigned char *received_payload) {
                         size++;
                     }
                     break;
+                case ESCAPE:
+                    state = DESTUFF;    
+                    if (byte == 0x5e){
+                        received_payload[size] = FLAG;
+                        BCC2 = byte;
+                        size++;
+                    }
+                    else if (byte == 0x5d){
+                        received_payload[size] = ESC;
+                        BCC2 = byte;
+                        size++;
+                    }
+                    else {
+                        received_payload[size] = ESC;
+                        size++;
+                        received_payload[size] = byte;
+                        BCC2 = byte;
+                        size++;
+                    }
+                    break;
+                default: 
+                    break; 
             }
         }
     }

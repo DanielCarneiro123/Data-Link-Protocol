@@ -45,6 +45,7 @@ typedef enum{
     CRCV,
     BCCOK,
     DESTUFF,
+    ESCAPE,
     STOP
 } state_t;
 
