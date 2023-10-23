@@ -24,6 +24,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     linkLayer.timeout = timeout;
 
     int fd = llopen(linkLayer);
+    printf("O FD no ap layer é: %i\n", fd);
     if (fd < 0) {
         perror("Connection error\n");
         exit(-1);

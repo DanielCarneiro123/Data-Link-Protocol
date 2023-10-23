@@ -1,15 +1,6 @@
 // Link layer protocol implementation
 
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <termios.h>
-#include <unistd.h>
-#include <signal.h>
-#include <stdbool.h>
+
 #include "../include/link_layer.h"
 
 // MISC
@@ -26,12 +17,13 @@
 
 int alarmEnabled = FALSE;
 int alarmCount = 0;
-int nRetransmissions = 0;
-int timeout = 3;
+int max_transmitions = 0;
+int timeout = 0;
 unsigned char info_frameTx = 0;
 unsigned char info_frameRx = 1;
 unsigned char BCC2 = 0;
 int stuffedPayload_size = 0;
+int bcc2_res = 0;
 
 state_t state;
 
@@ -39,10 +31,11 @@ state_t state;
 {
     int fd = connecting(connectionParameters.serialPort);
     if (fd < 0) return -1;
+    printf("O FD é: %i\n", fd);
     
     state = INIT;
     timeout = connectionParameters.timeout;
-    nRetransmissions = connectionParameters.nRetransmissions;
+    max_transmitions = connectionParameters.nRetransmissions;
     unsigned char byte;
 
     switch (connectionParameters.role)
@@ -51,7 +44,7 @@ state_t state;
 
         (void)signal(SIGALRM, alarmHandler);
 
-        while(((connectionParameters.nRetransmissions != 0 && alarmEnabled == 0)) && state != DONE){  //o fabio aqui tem connectionParameters.nRetransmissions
+        while(((connectionParameters.nRetransmissions > 0 && alarmEnabled == 0)) && state != DONE){  //o fabio aqui tem connectionParameters.nRetransmissions
         printf("dentro do while\n");
 
         // Create string to send
@@ -67,12 +60,12 @@ state_t state;
         alarm(connectionParameters.timeout);
         alarmEnabled = 1;
 
-        while (alarmEnabled==1 && state != FINAL){
+        while (alarmEnabled==1 && state != DONE){
             printf("vai ler\n");
             int nBytes = read(fd,&byte,1);
             printf("leu\n");
             
-            if (nBytes>0){
+            if (nBytes > 0){
                 switch(state){
                     case INIT:
                         printf("byte nr 1: %x\n",(unsigned int) byte & 0xFF);
@@ -91,7 +84,7 @@ state_t state;
                         break;
                     case BCCSTATE:
                         printf("byte nr 4: %x\n",(unsigned int) byte & 0xFF);
-                        if(byte == (6)) state = FINAL;
+                        if(byte == (A_RCV ^ UA)) { printf("%c entrou\n", A_RCV ^ UA); state = FINAL;}
                         else state = ERROR;
                         break;
                     case FINAL:
@@ -116,7 +109,7 @@ state_t state;
             }
             connectionParameters.nRetransmissions--;
         }
-        if (state != FINAL) return -1;
+        if (state != DONE) return -1;
             break;
     }
 
@@ -178,7 +171,9 @@ state_t state;
     default:
         return -1;
         break;
-    }  
+    } 
+
+    printf("O FD (2) é: %i\n", fd);
     return fd; 
 }
 
@@ -195,11 +190,22 @@ unsigned char *stuffing(const unsigned char *payload, int size)
 {
     printf("stuffing\n");
     unsigned char *send_payload = (unsigned char *)malloc(size); // Make it big enough for worst-case scenario
-    printf("Size Stuffing: %x\n", size);
+    printf("Size Stuffing: %d\n", size);
+
+    printf("Before stuffing:\n");
+    for (int i = 0; i < size; i++){
+        printf("stuffing:%x\n", payload[i]);
+    }
 
     if (send_payload == NULL)
     {
         return NULL;
+    }
+
+    BCC2 = payload[0];
+    for (int i = 1; i < size; i++)
+    {
+        BCC2 ^= payload[i];
     }
 
     int send_index = 0;
@@ -226,15 +232,10 @@ unsigned char *stuffing(const unsigned char *payload, int size)
             send_payload[send_index++] = payload[i];
         }
     }
-    
-    BCC2 = send_payload[0];
-    for (int i = 1; i < stuffedPayload_size; i++)
-    {
-        BCC2 ^= send_payload[i];
-    }
 
     // so para debug
-    for (int i = 0; i < size; i++){
+    printf("Afther stuffing:\n");
+    for (int i = 0; i < stuffedPayload_size; i++){
         printf("stuffing:%x\n", send_payload[i]);
     }
     return send_payload;
@@ -245,15 +246,8 @@ int destuffing(unsigned char *payload, int size)
 {
     printf("destuffing\n");
 
-    int res = payload[0];
     //printf("nao entrou no ciclo %02X\n", final_payload[0]);
     printf("%02X\n", payload[0]);
-    
-    for (int i = 1; i < size; i++)
-    {
-        res ^= payload[i];
-        printf("destuffing: %02X\n", payload[i]);
-    }
 
     unsigned char *final_payload = (unsigned char *)malloc(size); // Make it big enough for worst-case scenario
 
@@ -263,17 +257,20 @@ int destuffing(unsigned char *payload, int size)
     }
 
     int final_index = 0;
+    int final_payload_size = size;
     for (int i = 0; i < size; i++)
     {
         if (payload[i] == ESC)
         {
             if (payload[i + 1] == 0x5E)
             {
+                final_payload = realloc(final_payload, --final_payload_size);
                 final_payload[final_index++] = FLAG;
                 i++;
             }
             else if (payload[i + 1] == 0x5D)
             {
+                final_payload = realloc(final_payload, --final_payload_size);
                 final_payload[final_index++] = ESC;
                 i++;
             }
@@ -283,6 +280,14 @@ int destuffing(unsigned char *payload, int size)
             final_payload[final_index++] = payload[i];
         }
     }
+
+    bcc2_res = final_payload[0];
+
+    for (int i = 1; i < final_index; i++)
+    {
+        bcc2_res ^= final_payload[i];
+        printf("destuffing: %02X\n", final_payload[i]);
+    }
     
     for (int i = 1; i < final_index; i++)
     {
@@ -291,17 +296,13 @@ int destuffing(unsigned char *payload, int size)
 
     free(final_payload); // Free memory allocated for final_payload
 
-    return res;
+    return final_index;
 }
 
 int llwrite(int fd, const unsigned char *buf, int bufSize) {
     printf("in llwrite\n");
     int frameSize = bufSize + 6;
     unsigned char *frame = (unsigned char *)malloc(frameSize);
-
-    if (frame == NULL) {
-        return -1;
-    }
 
     frame[0] = FLAG;
     frame[1] = AC_SND;
@@ -324,14 +325,15 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
     bool all_done = false;
     bool rejected = false;
 
-    while (nRetransmissions < 3) {
+    int nRetransmissions = 0;
+
+    while (nRetransmissions < max_transmitions){
         alarmEnabled = FALSE;
         alarm(timeout);
         all_done = false;
         rejected = false;
         while (alarmEnabled == FALSE && !rejected && !all_done) {
             write(fd, frame, frame_index);
-
             Ccontrol = 0;
             state_t state = INIT;
             unsigned char byte = 0;
@@ -381,18 +383,19 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
 
             if (!Ccontrol) {
                 continue;
-            } else if (Ccontrol == C_RJ(0) || Ccontrol == C_RJ(1)) {
+            } 
+            else if (Ccontrol == C_RJ(0) || Ccontrol == C_RJ(1)) {
                 rejected = true;
-            } else if (Ccontrol == C_RR(0) || Ccontrol == C_RR(1)) {
-                printf("ola");
+            } 
+            else if (Ccontrol == C_RR(0) || Ccontrol == C_RR(1)) {
+                printf("ola\n");
                 all_done = true;
                 info_frameTx = (info_frameTx + 1) % 2;
-            } else {
+            } 
+            else {
                 continue;
-            }
+            }  
         }
-
-        
 
         if (all_done) {
             printf("adeus");
@@ -406,7 +409,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
     if (all_done) {
         return frameSize;
     } else {
-        //llclose(fd);
+        llclose(fd);
         return -1;
     }
 }
@@ -447,8 +450,8 @@ int llread(int fd, unsigned char *received_payload) {
                         state = FLAGRCV;
                     else if (byte == 0x0B) {
                         unsigned char FRAME1[5] = {FLAG, 0x01, 0x0B, 0x01 ^ 0x0B, FLAG};
-                        return write(fd, FRAME1, 5);
-                        break;
+                        write(fd, FRAME1, 5);
+                        return 0;
                     } else
                         state = INIT;
                     break;
@@ -466,21 +469,21 @@ int llread(int fd, unsigned char *received_payload) {
                         size--;
                         printf("Size: %x:\n", size);
 
-                        int bcc2_res = destuffing(received_payload, size);
+                        size = destuffing(received_payload, size);
                         printf("bcc2_res = %02X\n", bcc2_res);
                         printf("bcc2 = %02X\n", BCC2);
                         if (bcc2_res == BCC2) {
                             state = DONE;
                             unsigned char FRAME1[5] = {FLAG, 0x01, C_RR(info_frameRx), 0x01 ^ C_RR(info_frameRx), FLAG};
+                            write(fd, FRAME1, 5);
                             info_frameRx = (info_frameRx + 1) % 2;
-                            return write(fd, FRAME1, 5);
-                            break;
+                            return size;
                         } else {
                             printf("Error: retransmission\n");
                             unsigned char FRAME1[5] = {FLAG, 0x01, C_RJ(info_frameRx), 0x01 ^ C_RJ(info_frameRx), FLAG};
-                            return write(fd, FRAME1, 5);
-                            break;
-                        }
+                            write(fd, FRAME1, 5);
+                            return -1;
+                        };
                     } else {
                         received_payload[size] = byte;
                         printf("Byte: %x\n", byte);
@@ -501,7 +504,7 @@ int llclose(int fd){
     unsigned char byte;
     (void) signal(SIGALRM, alarmHandler);
     
-    while (nRetransmissions != 0 && state != DONE) {
+    while (max_transmitions != 0 && state != DONE) {
                 
         unsigned char FRAME1[5] = {FLAG, 0x03, 0x0B, 0x03 ^ 0x0B, FLAG};
         write(fd, FRAME1, 5);
@@ -537,7 +540,7 @@ int llclose(int fd){
                 }
             }
         } 
-        nRetransmissions--;
+        max_transmitions--;
     }
 
     if (state != DONE) return -1;
