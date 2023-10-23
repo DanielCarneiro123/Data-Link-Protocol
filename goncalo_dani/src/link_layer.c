@@ -23,28 +23,29 @@ unsigned char info_frameTx = 0;
 unsigned char info_frameRx = 1;
 unsigned char BCC2 = 0;
 int stuffedPayload_size = 0;
-int bcc2_res = 0;
+
+
 
 state_t state;
 
- int llopen(LinkLayer connectionParameters)
+ int llopen(LinkLayer LinkLayerInfo)
 {
-    int fd = connecting(connectionParameters.serialPort);
+    int fd = connecting(LinkLayerInfo.serialPort);
     if (fd < 0) return -1;
     printf("O FD é: %i\n", fd);
     
     state = INIT;
-    timeout = connectionParameters.timeout;
-    max_transmitions = connectionParameters.nRetransmissions;
+    timeout = LinkLayerInfo.timeout;
+    max_transmitions = LinkLayerInfo.nRetransmissions;
     unsigned char byte;
 
-    switch (connectionParameters.role)
+    switch (LinkLayerInfo.role)
     {
-    case LlTx: {
+    case CustomLlSender: {
 
         (void)signal(SIGALRM, alarmHandler);
 
-        while(((connectionParameters.nRetransmissions > 0 && alarmEnabled == 0)) && state != DONE){  //o fabio aqui tem connectionParameters.nRetransmissions
+        while(((LinkLayerInfo.nRetransmissions > 0 && alarmEnabled == 0)) && state != DONE){  //o fabio aqui tem LinkLayerInfo.nRetransmissions
         printf("dentro do while\n");
 
         // Create string to send
@@ -57,7 +58,7 @@ state_t state;
         int bytes = write(fd, buf, BUF_SIZE);
         printf("%d bytes written\n", bytes);
         
-        alarm(connectionParameters.timeout);
+        alarm(LinkLayerInfo.timeout);
         alarmEnabled = 1;
 
         while (alarmEnabled==1 && state != DONE){
@@ -107,13 +108,13 @@ state_t state;
                     }
                 }
             }
-            connectionParameters.nRetransmissions--;
+            LinkLayerInfo.nRetransmissions--;
         }
         if (state != DONE) return -1;
             break;
     }
 
-    case LlRx:
+    case CustomLlReceiver:
         while(state != STOP){
             int nBytes = read(fd,&byte,1);
                 
@@ -244,20 +245,21 @@ unsigned char *stuffing(const unsigned char *payload, int size)
 
 int destuffing(unsigned char *payload, int size)
 {
+    int bcc2_result = 0;
     printf("destuffing\n");
 
     //printf("nao entrou no ciclo %02X\n", final_payload[0]);
     printf("%02X\n", payload[0]);
 
-    bcc2_res = payload[0];
+    bcc2_result = payload[0];
 
     for (int i = 1; i < size; i++)
     {
-        bcc2_res ^= payload[i];
+        bcc2_result ^= payload[i];
         printf("destuffing: %02X\n", payload[i]);
     }
 
-    return bcc2_res;
+    return bcc2_result;
 }
 
 int llwrite(int fd, const unsigned char *buf, int bufSize) {
@@ -386,12 +388,11 @@ int llread(int fd, unsigned char *received_payload) {
     if (received_payload == NULL) {
         return -1;
     }
-
     int size = 0;
-
+    int bcc2_res = 0;
     while (state != DONE) {
         if (read(fd, &byte, 1) > 0) {
-            // printf("%02X\n", byte);
+            printf("beggining of the read cycle: %02X\n", byte);
             switch (state) {
                 case INIT:
                     if (byte == FLAG)
@@ -427,7 +428,8 @@ int llread(int fd, unsigned char *received_payload) {
                 case DESTUFF:
                     if (byte == ESC) state = ESCAPE;
                     else if (byte == FLAG) {
-                        received_payload[size - 1] = 0;
+                        bcc2_res = 0;
+                        received_payload[size - 1] = '\0';
                         size--;
                         printf("Size: %x:\n", size);
                         bcc2_res = destuffing(received_payload, size);
@@ -464,10 +466,30 @@ int llread(int fd, unsigned char *received_payload) {
                         BCC2 = byte;
                         size++;
                     }
+                    else if (byte == FLAG){
+                        received_payload[size - 1] = ESC;
+                        printf("Size: %x:\n", size);
+                        bcc2_res = destuffing(received_payload, size);
+                        printf("bcc2_res = %02X\n", bcc2_res);
+                        printf("bcc2 = %02X\n", BCC2);
+                        if (bcc2_res == BCC2) {
+                            state = DONE;
+                            unsigned char FRAME1[5] = {FLAG, 0x01, C_RR(info_frameRx), 0x01 ^ C_RR(info_frameRx), FLAG};
+                            write(fd, FRAME1, 5);
+                            info_frameRx = (info_frameRx + 1) % 2;
+                            return size;
+                        } else {
+                            printf("Error: retransmission\n");
+                            unsigned char FRAME1[5] = {FLAG, 0x01, C_RJ(info_frameRx), 0x01 ^ C_RJ(info_frameRx), FLAG};
+                            write(fd, FRAME1, 5);
+                            return -1;
+                        };
+                    }
+                    
                     else {
                         received_payload[size] = ESC;
                         size++;
-                        received_payload[size] = byte;
+                        received_payload[size] = byte; 
                         BCC2 = byte;
                         size++;
                     }
