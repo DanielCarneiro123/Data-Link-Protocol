@@ -26,9 +26,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     linkLayer.timeout = timeout;
 
     int fd = llopen(linkLayer);
-    printf("O FD no ap layer é: %i\n", fd);
     if (fd < 0) {
-        perror("Connection error\n");
+        perror("erro no connecting\n");
         exit(-1);
     }
 
@@ -38,7 +37,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             
             FILE* file = fopen(filename, "rb");
             if (file == NULL) {
-                perror("File not found\n");
+                perror("Ficheiro não encontrado\n");
                 exit(-1);
             }
 
@@ -50,7 +49,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             unsigned int cpSize;
             unsigned char *controlPacketStart = controlPacket(2, filename, fileSize, &cpSize);
             if(llwrite(fd, controlPacketStart, cpSize) == -1){ 
-                printf("Exit: error in start packet\n");
+                printf("Erro no primeiro control Packet\n");
                 exit(-1);
             }
 
@@ -74,7 +73,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 unsigned char *packet = dataPacket(sequence, data, dataSize, &packetSize);
 
                 if (llwrite(fd, packet, packetSize) == -1) {
-                    printf("Exit: error in data packet\n");
+                    printf("Erro no data packet\n");
                     exit(-1);
                 }
                 else{
@@ -88,7 +87,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
             unsigned char *controlPacketEnd = controlPacket(3, filename, fileSize, &cpSize);
             if(llwrite(fd, controlPacketEnd, cpSize) == -1) { 
-                printf("Exit: error in end packet\n");
+                printf("Erro no ultimo control packet\n");
                 exit(-1);
             }
             llclose(fd);
