@@ -25,16 +25,13 @@ unsigned char BCC2 = 0;
 int stuffedPayload_size = 0;
 
 
-
-state_t state;
-
- int llopen(LinkLayer LinkLayerInfo)
+int llopen(LinkLayer LinkLayerInfo)
 {
     int fd = connecting(LinkLayerInfo.serialPort);
     if (fd < 0) return -1;
     printf("O FD é: %i\n", fd);
     
-    state = INIT;
+    state_t state = INIT;
     timeout = LinkLayerInfo.timeout;
     max_transmitions = LinkLayerInfo.nRetransmissions;
     unsigned char byte;
@@ -45,7 +42,7 @@ state_t state;
 
         (void)signal(SIGALRM, alarmHandler);
 
-        while(((LinkLayerInfo.nRetransmissions > 0 && alarmEnabled == 0)) && state != DONE){  //o fabio aqui tem LinkLayerInfo.nRetransmissions
+        while((LinkLayerInfo.nRetransmissions != 0) && state != DONE){  
         printf("dentro do while\n");
 
         // Create string to send
@@ -59,9 +56,9 @@ state_t state;
         printf("%d bytes written\n", bytes);
         
         alarm(LinkLayerInfo.timeout);
-        alarmEnabled = 1;
+        alarmEnabled = 0;
 
-        while (alarmEnabled==1 && state != DONE){
+        while (alarmEnabled==0 && state != DONE){
             printf("vai ler\n");
             int nBytes = read(fd,&byte,1);
             printf("leu\n");
@@ -118,7 +115,7 @@ state_t state;
         while(state != STOP){
             int nBytes = read(fd,&byte,1);
                 
-            if (nBytes>0){
+            if (nBytes > 0){
                 switch(state){
                     case INIT:
                         printf("Byte nr 1: %x\n",(unsigned int) byte & 0xFF);
@@ -180,7 +177,7 @@ state_t state;
 
 void alarmHandler(int signal)
 {
-    alarmEnabled = FALSE;
+    alarmEnabled = TRUE;
     alarmCount++;
 
     printf("Alarm #%d\n", alarmCount);
@@ -302,41 +299,33 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
             unsigned char byte = 0;
 
             while (state != DONE && alarmEnabled == FALSE) {
-                if (read(fd, &byte, 1) > 0 ) {
+                    if (read(fd, &byte, 1) > 0 || 1) {
                     printf("BYTE: %02X\n", byte);
                     switch (state) {
                         case INIT:
-                            if (byte == FLAG)
-                                state = FLAGRCV;
+                            if (byte == FLAG) state = FLAGRCV;
                             break;
                         case FLAGRCV:
-                            if (byte == 0x01)
-                                state = A_RCV;
-                            else if (byte != FLAG)
-                                state = INIT;
+                            if (byte == 0x01) state = A_RCV;
+                            else if (byte != FLAG) state = INIT;
                             break;
                         case A_RCV:
                             if (byte == C_RR(0) || byte == C_RR(1) || byte == C_RJ(0) || byte == C_RJ(1) || byte == 0x0B) {
                                 state = CRCV;
                                 Ccontrol = byte;
-                            } else if (byte == FLAG)
-                                state = FLAGRCV;
-                            else
-                                state = INIT;
+                            } 
+                            else if (byte == FLAG) state = FLAGRCV;
+                            else state = INIT;
                             break;
                         case CRCV:
-                            if (byte == (0x01 ^ Ccontrol))
-                                state = BCCOK;
-                            else if (byte == FLAG)
-                                state = FLAGRCV;
-                            else
-                                state = INIT;
+                            if (byte == (0x01 ^ Ccontrol)) state = BCCOK;
+                            else if (byte == FLAG) state = FLAGRCV;
+                            else state = INIT;
                             break;
                         case BCCOK:
                             if (byte == FLAG) {
                                 state = DONE;
-                            } else
-                                state = INIT;
+                            } else state = INIT;
                             break;
                         default:
                             break;
@@ -517,7 +506,7 @@ int llclose(int fd){
         alarmEnabled = FALSE;
                 
         while (alarmEnabled == FALSE && state != DONE) {
-            if (read(fd, &byte, 1) > 0) {
+            if (read(fd, &byte, 1) > 0)  {
                 switch (state) {
                     case INIT:
                         if (byte == FLAG) state = FLAGRCV;
