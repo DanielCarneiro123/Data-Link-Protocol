@@ -29,7 +29,7 @@ int llopen(LinkLayer LinkLayerInfo)
 {
     int fd = connecting(LinkLayerInfo.serialPort);
     if (fd < 0) return -1;
-    printf("O FD é: %i\n", fd);
+    //printf("O FD é: %i\n", fd);
     
     state_t state = INIT;
     timeout = LinkLayerInfo.timeout;
@@ -43,7 +43,7 @@ int llopen(LinkLayer LinkLayerInfo)
         (void)signal(SIGALRM, alarmHandler);
 
         while((LinkLayerInfo.nRetransmissions != 0) && state != DONE){  
-        printf("dentro do while\n");
+        //printf("dentro do while\n");
 
         // Create string to send
         unsigned char buf[BUF_SIZE] = {0};
@@ -53,50 +53,50 @@ int llopen(LinkLayer LinkLayerInfo)
         buf[3] = (AC_SND ^ SET) & 0xFF;
         buf[4] = FLAG;
         int bytes = write(fd, buf, BUF_SIZE);
-        printf("%d bytes written\n", bytes);
+        //printf("%d bytes written\n", bytes);
         
         alarm(LinkLayerInfo.timeout);
         alarmEnabled = 0;
 
         while (alarmEnabled==0 && state != DONE){
-            printf("vai ler\n");
+            //printf("vai ler\n");
             int nBytes = read(fd,&byte,1);
-            printf("leu\n");
+            //printf("leu\n");
             
             if (nBytes > 0){
                 switch(state){
                     case INIT:
-                        printf("byte nr 1: %x\n",(unsigned int) byte & 0xFF);
+                        //printf("byte nr 1: %x\n",(unsigned int) byte & 0xFF);
                         if (byte==FLAG) state = ASTATE;
                         else state = ERROR;
                         break;
                     case ASTATE:
-                        printf("byte nr 2: %x\n",(unsigned int) byte & 0xFF);
+                        //printf("byte nr 2: %x\n",(unsigned int) byte & 0xFF);
                         if (byte==A_RCV) state = CSTATE;
                         else state = ERROR;
                         break;
                     case CSTATE:
-                        printf("byte nr 3: %x\n",(unsigned int) byte & 0xFF);
+                        //printf("byte nr 3: %x\n",(unsigned int) byte & 0xFF);
                         if(byte==UA) state = BCCSTATE;
                         else state = ERROR;
                         break;
                     case BCCSTATE:
-                        printf("byte nr 4: %x\n",(unsigned int) byte & 0xFF);
-                        if(byte == (A_RCV ^ UA)) { printf("%c entrou\n", A_RCV ^ UA); state = FINAL;}
+                        //printf("byte nr 4: %x\n",(unsigned int) byte & 0xFF);
+                        if(byte == (A_RCV ^ UA)) { /*printf("%c entrou\n", A_RCV ^ UA);*/ state = FINAL;}
                         else state = ERROR;
                         break;
                     case FINAL:
-                        printf("byte nr 5: %x\n",(unsigned int) byte & 0xFF);
+                        //printf("byte nr 5: %x\n",(unsigned int) byte & 0xFF);
                         if(byte==FLAG) {
                             alarm(0);
                             alarmEnabled=0;
                             state = DONE;
-                            printf("All done\n");
+                            //printf("All done\n");
                         }
                         else state = ERROR;                      
                         break;
                     case ERROR:
-                        printf("byte nr error: %x\n",(unsigned int) byte & 0xFF);
+                        //printf("byte nr error: %x\n",(unsigned int) byte & 0xFF);
                         break;
                         //res = res ^ byte;
                         //else state = ERROR;
@@ -118,33 +118,33 @@ int llopen(LinkLayer LinkLayerInfo)
             if (nBytes > 0){
                 switch(state){
                     case INIT:
-                        printf("Byte nr 1: %x\n",(unsigned int) byte & 0xFF);
+                        //printf("Byte nr 1: %x\n",(unsigned int) byte & 0xFF);
                         if (byte==FLAG) state = FLAGRCV;
                         else state = INIT;
                         break;
                     case FLAGRCV:
-                        printf("Byte nr 2: %x\n",(unsigned int) byte & 0xFF);
+                        //printf("Byte nr 2: %x\n",(unsigned int) byte & 0xFF);
                         if (byte==AC_SND) state = ARCV;
                         else if (byte==FLAG) state = FLAGRCV;
                         else state = INIT;
                         break;
                     case ARCV:
-                        printf("Byte nr 3: %x\n",(unsigned int) byte & 0xFF);
+                        //printf("Byte nr 3: %x\n",(unsigned int) byte & 0xFF);
                         if(byte==SET) state = CRCV;
                         else if (byte==FLAG) state = FLAGRCV;
                         else state = INIT;
                         break;
                     case CRCV:
-                        printf("Byte nr 4: %x\n",(unsigned int) byte & 0xFF);
+                        //printf("Byte nr 4: %x\n",(unsigned int) byte & 0xFF);
                         if(byte == (AC_SND ^ SET)) state = BCCOK;
                         else if(byte== FLAG) state = FLAGRCV;
                         else state = INIT;
                         break;
                     case BCCOK:
-                        printf("Byte nr 5: %x\n",(unsigned int) byte & 0xFF);
+                        //printf("Byte nr 5: %x\n",(unsigned int) byte & 0xFF);
                         if(byte==FLAG) {
                             state = STOP;
-                            printf("All done\n");
+                            //printf("All done\n");
                         }
                         else state = INIT;                      
                         break;
@@ -157,21 +157,21 @@ int llopen(LinkLayer LinkLayerInfo)
             buf2[2] = UA;
             buf2[3] = (A_RCV ^ UA) & 0xFF;
             buf2[4] = FLAG;
-            for (int i = 0; i < 5; i++) {
+            /*for (int i = 0; i < 5; i++) {
                 printf("0x%02X", buf2[i]);
                 if (i < 4) {
                     printf(", ");
                 }
-            }
+            }*/
             int bytes = write(fd, buf2, BUF_SIZE);
-            printf("%d bytes written \n", bytes);
+            //printf("%d bytes written \n", bytes);
             break;
     default:
         return -1;
         break;
     } 
 
-    printf("O FD (2) é: %i\n", fd);
+    //printf("O FD (2) é: %i\n", fd);
     return fd; 
 }
 
@@ -180,20 +180,20 @@ void alarmHandler(int signal)
     alarmEnabled = TRUE;
     alarmCount++;
 
-    printf("Alarm #%d\n", alarmCount);
+    //printf("Alarm #%d\n", alarmCount);
 }
 
 
 unsigned char *stuffing(const unsigned char *payload, int size)
 {
-    printf("stuffing\n");
+    //printf("stuffing\n");
     unsigned char *send_payload = (unsigned char *)malloc(size); // Make it big enough for worst-case scenario
-    printf("Size Stuffing: %d\n", size);
+    //printf("Size Stuffing: %d\n", size);
 
-    printf("Before stuffing:\n");
-    for (int i = 0; i < size; i++){
+    //printf("Before stuffing:\n");
+    /*for (int i = 0; i < size; i++){
         printf("stuffing:%x\n", payload[i]);
-    }
+    }*/
 
     if (send_payload == NULL)
     {
@@ -232,10 +232,10 @@ unsigned char *stuffing(const unsigned char *payload, int size)
     }
 
     // so para debug
-    printf("After stuffing:\n");
+    /*printf("After stuffing:\n");
     for (int i = 0; i < stuffedPayload_size; i++){
         printf("stuffing:%x\n", send_payload[i]);
-    }
+    }*/
     return send_payload;
 }
 
@@ -243,24 +243,24 @@ unsigned char *stuffing(const unsigned char *payload, int size)
 int destuffing(unsigned char *payload, int size)
 {
     int bcc2_result = 0;
-    printf("destuffing\n");
+    //printf("destuffing\n");
 
     //printf("nao entrou no ciclo %02X\n", final_payload[0]);
-    printf("%02X\n", payload[0]);
+    //printf("%02X\n", payload[0]);
 
     bcc2_result = payload[0];
 
     for (int i = 1; i < size; i++)
     {
         bcc2_result ^= payload[i];
-        printf("destuffing: %02X\n", payload[i]);
+        //printf("destuffing: %02X\n", payload[i]);
     }
 
     return bcc2_result;
 }
 
 int llwrite(int fd, const unsigned char *buf, int bufSize) {
-    printf("in llwrite\n");
+    //printf("in llwrite\n");
     int frameSize = bufSize + 6;
     unsigned char *frame = (unsigned char *)malloc(frameSize);
 
@@ -300,7 +300,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
 
             while (state != DONE && alarmEnabled == FALSE) {
                     if (read(fd, &byte, 1) > 0 || 1) {
-                    printf("BYTE: %02X\n", byte);
+                    //printf("BYTE: %02X\n", byte);
                     switch (state) {
                         case INIT:
                             if (byte == FLAG) state = FLAGRCV;
@@ -340,7 +340,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
                 rejected = true;
             } 
             else if (Ccontrol == C_RR(0) || Ccontrol == C_RR(1)) {
-                printf("ola\n");
+                //printf("ola\n");
                 all_done = true;
                 info_frameTx = (info_frameTx + 1) % 2;
             } 
@@ -350,7 +350,7 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
         }
 
         if (all_done) {
-            printf("adeus");
+            //printf("adeus");
             break;
         }
         nRetransmissions++;
@@ -368,7 +368,8 @@ int llwrite(int fd, const unsigned char *buf, int bufSize) {
 
 
 int llread(int fd, unsigned char *received_payload) {
-    printf("in llread\n");
+    unsigned char prob = rand() % 100;
+    //printf("in llread\n");
     // Aqui, você pode adicionar a lógica para enviar um UA se receber um SET, como mencionou
     unsigned char byte, Ccontrol;
     state_t state = INIT;
@@ -381,13 +382,17 @@ int llread(int fd, unsigned char *received_payload) {
     int bcc2_res = 0;
     while (state != DONE) {
         if (read(fd, &byte, 1) > 0) {
-            printf("beggining of the read cycle: %02X\n", byte);
+            //printf("beggining of the read cycle: %02X\n", byte);
             switch (state) {
                 case INIT:
                     if (byte == FLAG)
                         state = FLAGRCV;
                     break;
                 case FLAGRCV:
+                    /*if (prob < 20){
+                        byte = 0xFF;
+                        prob = rand() % 100;
+                    }*/
                     if (byte == 0x03)
                         state = A_RCV;
                     else if (byte != FLAG)
@@ -420,10 +425,10 @@ int llread(int fd, unsigned char *received_payload) {
                         bcc2_res = 0;
                         received_payload[size - 1] = '\0';
                         size--;
-                        printf("Size: %x:\n", size);
+                        //printf("Size: %x:\n", size);
                         bcc2_res = destuffing(received_payload, size);
-                        printf("bcc2_res = %02X\n", bcc2_res);
-                        printf("bcc2 = %02X\n", BCC2);
+                        //printf("bcc2_res = %02X\n", bcc2_res);
+                        //printf("bcc2 = %02X\n", BCC2);
                         if (bcc2_res == BCC2) {
                             state = DONE;
                             unsigned char FRAME1[5] = {FLAG, 0x01, C_RR(info_frameRx), 0x01 ^ C_RR(info_frameRx), FLAG};
@@ -431,14 +436,18 @@ int llread(int fd, unsigned char *received_payload) {
                             info_frameRx = (info_frameRx + 1) % 2;
                             return size;
                         } else {
-                            printf("Error: retransmission\n");
+                            //printf("Error: retransmission\n");
                             unsigned char FRAME1[5] = {FLAG, 0x01, C_RJ(info_frameRx), 0x01 ^ C_RJ(info_frameRx), FLAG};
                             write(fd, FRAME1, 5);
                             return -1;
                         };
                     } else {
+                        /*if (prob < 20){
+                            byte = 0xFF;
+                            prob = rand() % 100;
+                        }*/
                         received_payload[size] = byte;
-                        printf("Byte: %x\n", byte);
+                        //printf("Byte: %x\n", byte);
                         BCC2 = byte;
                         size++;
                     }
@@ -457,10 +466,10 @@ int llread(int fd, unsigned char *received_payload) {
                     }
                     else if (byte == FLAG){
                         received_payload[size - 1] = ESC;
-                        printf("Size: %x:\n", size);
+                        //printf("Size: %x:\n", size);
                         bcc2_res = destuffing(received_payload, size);
-                        printf("bcc2_res = %02X\n", bcc2_res);
-                        printf("bcc2 = %02X\n", BCC2);
+                        //printf("bcc2_res = %02X\n", bcc2_res);
+                        //printf("bcc2 = %02X\n", BCC2);
                         if (bcc2_res == BCC2) {
                             state = DONE;
                             unsigned char FRAME1[5] = {FLAG, 0x01, C_RR(info_frameRx), 0x01 ^ C_RR(info_frameRx), FLAG};
@@ -468,7 +477,7 @@ int llread(int fd, unsigned char *received_payload) {
                             info_frameRx = (info_frameRx + 1) % 2;
                             return size;
                         } else {
-                            printf("Error: retransmission\n");
+                            //printf("Error: retransmission\n");
                             unsigned char FRAME1[5] = {FLAG, 0x01, C_RJ(info_frameRx), 0x01 ^ C_RJ(info_frameRx), FLAG};
                             write(fd, FRAME1, 5);
                             return -1;

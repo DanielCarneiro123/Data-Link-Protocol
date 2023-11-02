@@ -14,6 +14,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <math.h>
+#include <time.h>
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename)
@@ -98,6 +99,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
             unsigned char *packet = (unsigned char *)malloc(MAX_PAYLOAD_SIZE);
             int packetSize = -1;
+            clock_t start_time = clock();
             while ((packetSize = llread(fd, packet)) < 0);
 
             unsigned long int rxFileSize = 0;
@@ -120,7 +122,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
                 else continue;
             }
-
+            clock_t end_time = clock();
+            double full_time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
             fclose(newFile);
             break;
 
